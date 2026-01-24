@@ -1,0 +1,12 @@
+RewriteEngine On
+
+# Skip .php files (they exist)
+RewriteCond %{REQUEST_URI} \.php$ [NC]
+RewriteRule ^ - [L]
+
+# Skip existing files and directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Rewrite to index.php
+RewriteRule ^ index.php [QSA,L]
