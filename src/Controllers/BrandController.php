@@ -52,7 +52,7 @@ class BrandController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO brands (company_id, brand_name, logo_url, brand_website, brand_description, sub_brand, parent_company, trader, trader_location)
+            'INSERT INTO brands (company_id, brand_name, logo_url, brand_website, brand_description, sub_brand, parent_company, trader_name, trader_address)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
@@ -63,8 +63,8 @@ class BrandController {
             $data['brand_description'] ?? null,
             $data['sub_brand'] ?? null,
             $data['parent_company'] ?? null,
-            $data['trader'] ?? null,
-            $data['trader_location'] ?? null
+            $data['trader_name'] ?? null,
+            $data['trader_address'] ?? null
         ]);
 
         $id = $this->db->lastInsertId();
@@ -88,8 +88,8 @@ class BrandController {
                 brand_description = COALESCE(?, brand_description),
                 sub_brand = COALESCE(?, sub_brand),
                 parent_company = COALESCE(?, parent_company),
-                trader = COALESCE(?, trader),
-                trader_location = COALESCE(?, trader_location)
+                trader_name = COALESCE(?, trader_name),
+                trader_address = COALESCE(?, trader_address)
              WHERE id = ?'
         );
         $stmt->execute([
@@ -99,8 +99,8 @@ class BrandController {
             $data['brand_description'] ?? null,
             $data['sub_brand'] ?? null,
             $data['parent_company'] ?? null,
-            $data['trader'] ?? null,
-            $data['trader_location'] ?? null,
+            $data['trader_name'] ?? null,
+            $data['trader_address'] ?? null,
             $params['id']
         ]);
 

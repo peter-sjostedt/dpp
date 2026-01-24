@@ -69,9 +69,10 @@ class ProductController {
             'INSERT INTO products (
                 brand_id, product_name, product_description, product_category,
                 product_type, product_gender, style_number, season,
-                product_image_url, country_of_origin, product_id_system,
-                product_id_value, consumer_description, consumer_website_url
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                product_image_url, country_of_origin, gtin,
+                description, consumer_website_url, line, garment_type,
+                weight_kg, is_active
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['brandId'],
@@ -84,10 +85,13 @@ class ProductController {
             $data['season'] ?? null,
             $data['product_image_url'] ?? null,
             $data['country_of_origin'] ?? null,
-            $data['product_id_system'] ?? null,
-            $data['product_id_value'] ?? null,
-            $data['consumer_description'] ?? null,
-            $data['consumer_website_url'] ?? null
+            $data['gtin'] ?? null,
+            $data['description'] ?? null,
+            $data['consumer_website_url'] ?? null,
+            $data['line'] ?? null,
+            $data['garment_type'] ?? null,
+            $data['weight_kg'] ?? null,
+            $data['is_active'] ?? true
         ]);
 
         $id = $this->db->lastInsertId();
@@ -114,10 +118,13 @@ class ProductController {
                 season = COALESCE(?, season),
                 product_image_url = COALESCE(?, product_image_url),
                 country_of_origin = COALESCE(?, country_of_origin),
-                product_id_system = COALESCE(?, product_id_system),
-                product_id_value = COALESCE(?, product_id_value),
-                consumer_description = COALESCE(?, consumer_description),
-                consumer_website_url = COALESCE(?, consumer_website_url)
+                gtin = COALESCE(?, gtin),
+                description = COALESCE(?, description),
+                consumer_website_url = COALESCE(?, consumer_website_url),
+                line = COALESCE(?, line),
+                garment_type = COALESCE(?, garment_type),
+                weight_kg = COALESCE(?, weight_kg),
+                is_active = COALESCE(?, is_active)
              WHERE id = ?'
         );
         $stmt->execute([
@@ -130,10 +137,13 @@ class ProductController {
             $data['season'] ?? null,
             $data['product_image_url'] ?? null,
             $data['country_of_origin'] ?? null,
-            $data['product_id_system'] ?? null,
-            $data['product_id_value'] ?? null,
-            $data['consumer_description'] ?? null,
+            $data['gtin'] ?? null,
+            $data['description'] ?? null,
             $data['consumer_website_url'] ?? null,
+            $data['line'] ?? null,
+            $data['garment_type'] ?? null,
+            $data['weight_kg'] ?? null,
+            $data['is_active'] ?? null,
             $params['id']
         ]);
 
@@ -156,7 +166,7 @@ class ProductController {
     // DPP Export - complete digital product passport
     public function getDpp(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT p.*, b.brand_name, b.logo_url, b.sub_brand, b.parent_company, b.trader, b.trader_location,
+            'SELECT p.*, b.brand_name, b.logo_url, b.sub_brand, b.parent_company, b.trader_name, b.trader_address,
                     c.name as company_name, c.org_number
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
@@ -248,7 +258,7 @@ class ProductController {
     }
 
     private function getVariantsWithDetails(int|string $productId): array {
-        $stmt = $this->db->prepare('SELECT * FROM product_variants WHERE product_id = ? ORDER BY item_number');
+        $stmt = $this->db->prepare('SELECT * FROM product_variants WHERE product_id = ? ORDER BY sku');
         $stmt->execute([$productId]);
         $variants = $stmt->fetchAll();
 

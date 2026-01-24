@@ -16,7 +16,7 @@ class BatchController {
 
     public function index(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT b.*, pv.item_number, pv.size, pv.color_brand
+            'SELECT b.*, pv.sku, pv.size, pv.color_name
              FROM batches b
              LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
              WHERE b.product_variant_id = ?
@@ -28,7 +28,7 @@ class BatchController {
 
     public function show(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT b.*, pv.item_number, pv.size, pv.color_brand, p.product_name
+            'SELECT b.*, pv.sku, pv.size, pv.color_name, p.product_name
              FROM batches b
              LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
              LEFT JOIN products p ON pv.product_id = p.id
@@ -126,7 +126,7 @@ class BatchController {
              FROM batch_suppliers bs
              LEFT JOIN suppliers s ON bs.supplier_id = s.id
              WHERE bs.batch_id = ?
-             ORDER BY bs.process_type'
+             ORDER BY bs.production_stage'
         );
         $stmt->execute([$batchId]);
         return $stmt->fetchAll();
@@ -139,7 +139,7 @@ class BatchController {
     public function addSupplier(array $params): void {
         $data = Validator::getJsonBody();
 
-        if ($error = Validator::required($data, ['supplier_id', 'process_type'])) {
+        if ($error = Validator::required($data, ['supplier_id', 'production_stage'])) {
             Response::error($error);
         }
 
@@ -158,12 +158,12 @@ class BatchController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO batch_suppliers (batch_id, supplier_id, process_type) VALUES (?, ?, ?)'
+            'INSERT INTO batch_suppliers (batch_id, supplier_id, production_stage) VALUES (?, ?, ?)'
         );
         $stmt->execute([
             $params['batchId'],
             $data['supplier_id'],
-            $data['process_type']
+            $data['production_stage']
         ]);
 
         Response::success(['id' => (int)$this->db->lastInsertId()], 201);

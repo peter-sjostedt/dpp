@@ -90,12 +90,12 @@
                 <div class="section-content">
                     <button class="btn-get" onclick="api('GET', '/api/materials/' + getMaterialId() + '/compositions')">Lista compositions</button>
                     <h3>Lägg till fiber</h3>
-                    <label>Fiber (t.ex. Cotton, Polyester):</label>
-                    <input type="text" id="content_name" placeholder="Cotton">
+                    <label>Fibertyp (t.ex. Cotton, Polyester):</label>
+                    <input type="text" id="fiber_type" placeholder="Cotton">
                     <label>Procent:</label>
-                    <input type="number" step="0.01" id="content_percentage" placeholder="100">
-                    <label>Källa:</label>
-                    <input type="text" id="content_source" placeholder="India">
+                    <input type="number" step="0.01" id="percentage" placeholder="100">
+                    <label>Fiberkälla:</label>
+                    <input type="text" id="fiber_source" placeholder="India">
                     <label>Varumärke:</label>
                     <input type="text" id="material_trademark" placeholder="Supima">
                     <label>Återvunnen:</label>
@@ -261,9 +261,9 @@
 
         function addComposition() {
             api('POST', '/api/materials/' + getMaterialId() + '/compositions', {
-                content_name: document.getElementById('content_name').value,
-                content_percentage: parseFloat(document.getElementById('content_percentage').value),
-                content_source: document.getElementById('content_source').value || null,
+                fiber_type: document.getElementById('fiber_type').value,
+                percentage: parseFloat(document.getElementById('percentage').value),
+                fiber_source: document.getElementById('fiber_source').value || null,
                 material_trademark: document.getElementById('material_trademark').value || null,
                 is_recycled: document.getElementById('is_recycled').value === '1',
                 recycled_percentage: parseFloat(document.getElementById('recycled_percentage').value) || null,

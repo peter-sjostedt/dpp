@@ -84,15 +84,12 @@
                 <div class="section-content">
                     <label>Supplier:</label>
                     <select id="supplier_id"></select>
-                    <label>Process Type:</label>
-                    <select id="process_type">
-                        <option value="raw_material_processing">Raw Material Processing</option>
-                        <option value="fabric_production">Fabric Production</option>
-                        <option value="dyeing">Dyeing</option>
-                        <option value="cutting">Cutting</option>
-                        <option value="sewing">Sewing</option>
-                        <option value="finishing">Finishing</option>
-                        <option value="packaging">Packaging</option>
+                    <label>Produktionssteg:</label>
+                    <select id="production_stage">
+                        <option value="confection">Confection</option>
+                        <option value="dyeing_printing">Dyeing/Printing</option>
+                        <option value="weaving_knitting">Weaving/Knitting</option>
+                        <option value="spinning">Spinning</option>
                         <option value="other">Other</option>
                     </select>
                     <button class="btn-get" onclick="api('GET', '/api/batches/' + getBatchId() + '/suppliers')">Lista suppliers</button>
@@ -192,7 +189,7 @@
                 const json = await res.json();
                 if (json.data) {
                     json.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.item_number} (${v.size || '-'})</option>`;
+                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.sku} (${v.size || '-'})</option>`;
                     });
                 }
             }
@@ -265,7 +262,7 @@
         function addSupplier() {
             api('POST', '/api/batches/' + document.getElementById('batch_id_select').value + '/suppliers', {
                 supplier_id: parseInt(document.getElementById('supplier_id').value),
-                process_type: document.getElementById('process_type').value
+                production_stage: document.getElementById('production_stage').value
             });
         }
 

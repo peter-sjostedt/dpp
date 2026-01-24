@@ -59,10 +59,8 @@
             <div class="section" id="sec-create">
                 <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa enskild item</h2></div>
                 <div class="section-content">
-                    <label>Unique Product ID (genereras automatiskt om tomt):</label>
-                    <input type="text" id="unique_product_id" placeholder="DPP-XXXXXXXX-TIMESTAMP">
-                    <label>Serienummer:</label>
-                    <input type="text" id="serial_number" placeholder="SN-12345">
+                    <label>Serienummer (genereras automatiskt om tomt):</label>
+                    <input type="text" id="serial_number" placeholder="DPP-XXXXXXXX-TIMESTAMP">
                     <label>Data Carrier Type:</label>
                     <input type="text" id="data_carrier_type" placeholder="QR, NFC, RFID">
                     <button class="btn-post" onclick="create()">Skapa</button>
@@ -91,11 +89,11 @@
             </div>
 
             <div class="section" id="sec-search">
-                <div class="section-header" onclick="toggle('sec-search')"><h2>Sök på UID</h2></div>
+                <div class="section-header" onclick="toggle('sec-search')"><h2>Sök på serienummer</h2></div>
                 <div class="section-content">
-                    <label>Unique Product ID:</label>
-                    <input type="text" id="uid" placeholder="DPP-XXXXXXXX-TIMESTAMP">
-                    <button class="btn-get" onclick="api('GET', '/api/items/uid/' + document.getElementById('uid').value)">Sök</button>
+                    <label>Serienummer:</label>
+                    <input type="text" id="search_serial" placeholder="DPP-XXXXXXXX-TIMESTAMP">
+                    <button class="btn-get" onclick="api('GET', '/api/items/serial/' + document.getElementById('search_serial').value)">Sök</button>
                 </div>
             </div>
         </div>
@@ -166,7 +164,7 @@
                 const json = await res.json();
                 if (json.data) {
                     json.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.item_number} (${v.size || '-'})</option>`;
+                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.sku} (${v.size || '-'})</option>`;
                     });
                 }
             }
@@ -199,7 +197,7 @@
                 const json = await res.json();
                 if (json.data) {
                     json.data.forEach(i => {
-                        select.innerHTML += `<option value="${i.id}">${i.id}: ${i.unique_product_id}</option>`;
+                        select.innerHTML += `<option value="${i.id}">${i.id}: ${i.serial_number}</option>`;
                     });
                 }
             }
@@ -227,11 +225,10 @@
 
         function create() {
             const data = {
-                serial_number: document.getElementById('serial_number').value || null,
                 data_carrier_type: document.getElementById('data_carrier_type').value || null
             };
-            const uid = document.getElementById('unique_product_id').value;
-            if (uid) data.unique_product_id = uid;
+            const serial = document.getElementById('serial_number').value;
+            if (serial) data.serial_number = serial;
 
             api('POST', '/api/batches/' + document.getElementById('batch_id').value + '/items', data)
                 .then(() => loadItems());

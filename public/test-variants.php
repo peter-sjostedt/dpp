@@ -56,16 +56,34 @@
             <div class="section" id="sec-create">
                 <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa ny</h2></div>
                 <div class="section-content">
-                    <label>Item Number:</label>
-                    <input type="text" id="item_number" placeholder="SKU-12345">
-                    <label>GTIN:</label>
-                    <input type="text" id="gtin" placeholder="1234567890123">
+                    <label>SKU:</label>
+                    <input type="text" id="sku" placeholder="SKU-12345">
                     <label>Storlek:</label>
                     <input type="text" id="size" placeholder="M">
-                    <label>Färg (varumärke):</label>
-                    <input type="text" id="color_brand" placeholder="Navy Blue">
-                    <label>Färg (generell):</label>
-                    <input type="text" id="color_general" placeholder="Blue">
+                    <label>Storlek-system:</label>
+                    <input type="text" id="size_system" placeholder="EU">
+                    <label>Färgnamn:</label>
+                    <input type="text" id="color_name" placeholder="Navy Blue">
+                    <label>Färgkod:</label>
+                    <select id="color_code">
+                        <option value="">-- Välj --</option>
+                        <option value="black">Black</option>
+                        <option value="white">White</option>
+                        <option value="grey">Grey</option>
+                        <option value="navy">Navy</option>
+                        <option value="blue">Blue</option>
+                        <option value="red">Red</option>
+                        <option value="green">Green</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="orange">Orange</option>
+                        <option value="pink">Pink</option>
+                        <option value="purple">Purple</option>
+                        <option value="brown">Brown</option>
+                        <option value="beige">Beige</option>
+                        <option value="multicolour">Multicolour</option>
+                        <option value="print">Print</option>
+                        <option value="other">Other</option>
+                    </select>
                     <button class="btn-post" onclick="create()">Skapa</button>
                 </div>
             </div>
@@ -150,7 +168,7 @@
                 const json = await res.json();
                 if (json.data) {
                     json.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.item_number} (${v.size || '-'} / ${v.color_brand || '-'})</option>`;
+                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.sku} (${v.size || '-'} / ${v.color_name || '-'})</option>`;
                     });
                 }
             }
@@ -169,11 +187,11 @@
 
         function create() {
             api('POST', '/api/products/' + document.getElementById('product_id').value + '/variants', {
-                item_number: document.getElementById('item_number').value,
-                gtin: document.getElementById('gtin').value || null,
+                sku: document.getElementById('sku').value,
                 size: document.getElementById('size').value || null,
-                color_brand: document.getElementById('color_brand').value || null,
-                color_general: document.getElementById('color_general').value || null
+                size_system: document.getElementById('size_system').value || null,
+                color_name: document.getElementById('color_name').value || null,
+                color_code: document.getElementById('color_code').value || null
             }).then(() => loadVariants());
         }
     </script>

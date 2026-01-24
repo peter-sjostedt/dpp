@@ -43,7 +43,7 @@ class ProductVariantController {
     public function create(array $params): void {
         $data = Validator::getJsonBody();
 
-        if ($error = Validator::required($data, ['item_number'])) {
+        if ($error = Validator::required($data, ['sku'])) {
             Response::error($error);
         }
 
@@ -54,28 +54,27 @@ class ProductVariantController {
             Response::error('Product not found', 404);
         }
 
-        // Check for duplicate item_number
-        $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE item_number = ?');
-        $stmt->execute([$data['item_number']]);
+        // Check for duplicate sku
+        $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE sku = ?');
+        $stmt->execute([$data['sku']]);
         if ($stmt->fetch()) {
-            Response::error('Item number already exists', 400);
+            Response::error('SKU already exists', 400);
         }
 
         $stmt = $this->db->prepare(
             'INSERT INTO product_variants (
-                product_id, item_number, gtin, size, size_country_code,
-                color_brand, color_general, weight_kg
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                product_id, sku, size, size_system,
+                color_name, color_code, is_active
+             ) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['productId'],
-            $data['item_number'],
-            $data['gtin'] ?? null,
+            $data['sku'],
             $data['size'] ?? null,
-            $data['size_country_code'] ?? null,
-            $data['color_brand'] ?? null,
-            $data['color_general'] ?? null,
-            $data['weight_kg'] ?? null
+            $data['size_system'] ?? null,
+            $data['color_name'] ?? null,
+            $data['color_code'] ?? null,
+            $data['is_active'] ?? true
         ]);
 
         $id = $this->db->lastInsertId();
@@ -91,34 +90,32 @@ class ProductVariantController {
             Response::error('Variant not found', 404);
         }
 
-        // Check for duplicate item_number if changing
-        if (isset($data['item_number'])) {
-            $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE item_number = ? AND id != ?');
-            $stmt->execute([$data['item_number'], $params['id']]);
+        // Check for duplicate sku if changing
+        if (isset($data['sku'])) {
+            $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE sku = ? AND id != ?');
+            $stmt->execute([$data['sku'], $params['id']]);
             if ($stmt->fetch()) {
-                Response::error('Item number already exists', 400);
+                Response::error('SKU already exists', 400);
             }
         }
 
         $stmt = $this->db->prepare(
             'UPDATE product_variants SET
-                item_number = COALESCE(?, item_number),
-                gtin = COALESCE(?, gtin),
+                sku = COALESCE(?, sku),
                 size = COALESCE(?, size),
-                size_country_code = COALESCE(?, size_country_code),
-                color_brand = COALESCE(?, color_brand),
-                color_general = COALESCE(?, color_general),
-                weight_kg = COALESCE(?, weight_kg)
+                size_system = COALESCE(?, size_system),
+                color_name = COALESCE(?, color_name),
+                color_code = COALESCE(?, color_code),
+                is_active = COALESCE(?, is_active)
              WHERE id = ?'
         );
         $stmt->execute([
-            $data['item_number'] ?? null,
-            $data['gtin'] ?? null,
+            $data['sku'] ?? null,
             $data['size'] ?? null,
-            $data['size_country_code'] ?? null,
-            $data['color_brand'] ?? null,
-            $data['color_general'] ?? null,
-            $data['weight_kg'] ?? null,
+            $data['size_system'] ?? null,
+            $data['color_name'] ?? null,
+            $data['color_code'] ?? null,
+            $data['is_active'] ?? null,
             $params['id']
         ]);
 

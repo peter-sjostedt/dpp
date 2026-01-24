@@ -155,7 +155,7 @@ class DppExportController {
 
         // Get variants
         $stmt = $this->db->prepare(
-            'SELECT sku, gtin, size, color, color_code, weight_kg, price
+            'SELECT sku, size, size_system, color_name, color_code
              FROM product_variants WHERE product_id = ?'
         );
         $stmt->execute([$productId]);
@@ -181,15 +181,15 @@ class DppExportController {
         // Enrich each material with compositions and certifications
         foreach ($materials as &$material) {
             $stmt = $this->db->prepare(
-                'SELECT content_name, content_percentage, content_source, content_certified
-                 FROM material_compositions WHERE factory_material_id = ?'
+                'SELECT fiber_type, percentage, fiber_source, is_recycled
+                 FROM factory_material_compositions WHERE factory_material_id = ?'
             );
             $stmt->execute([$material['id']]);
             $material['compositions'] = $stmt->fetchAll();
 
             $stmt = $this->db->prepare(
-                'SELECT certification_name, certification_body, certificate_number, valid_until
-                 FROM material_certifications WHERE factory_material_id = ?'
+                'SELECT certification_type, certification_other, certificate_number, valid_until
+                 FROM factory_material_certifications WHERE factory_material_id = ?'
             );
             $stmt->execute([$material['id']]);
             $material['certifications'] = $stmt->fetchAll();
@@ -215,13 +215,13 @@ class DppExportController {
 
         // Get suppliers from batches
         $stmt = $this->db->prepare(
-            'SELECT DISTINCT s.*, bs.process_step, bs.process_description
+            'SELECT DISTINCT s.*, bs.production_stage
              FROM suppliers s
              INNER JOIN batch_suppliers bs ON bs.supplier_id = s.id
              INNER JOIN batches b ON b.id = bs.batch_id
-             INNER JOIN product_variants pv ON pv.id = b.variant_id
+             INNER JOIN product_variants pv ON pv.id = b.product_variant_id
              WHERE pv.product_id = ?
-             ORDER BY bs.process_step'
+             ORDER BY bs.production_stage'
         );
         $stmt->execute([$productId]);
         $batchSuppliers = $stmt->fetchAll();
@@ -292,10 +292,10 @@ class DppExportController {
         foreach ($materials as $material) {
             foreach ($material['compositions'] ?? [] as $comp) {
                 $compositions[] = [
-                    'materialName' => $comp['content_name'],
-                    'percentage' => (float)$comp['content_percentage'],
-                    'source' => $comp['content_source'],
-                    'certified' => (bool)$comp['content_certified']
+                    'fiberType' => $comp['fiber_type'],
+                    'percentage' => (float)$comp['percentage'],
+                    'source' => $comp['fiber_source'],
+                    'isRecycled' => (bool)$comp['is_recycled']
                 ];
             }
         }
@@ -305,8 +305,8 @@ class DppExportController {
         foreach ($materials as $material) {
             foreach ($material['certifications'] ?? [] as $cert) {
                 $certifications[] = [
-                    'name' => $cert['certification_name'],
-                    'body' => $cert['certification_body'],
+                    'type' => $cert['certification_type'],
+                    'other' => $cert['certification_other'],
                     'number' => $cert['certificate_number'],
                     'validUntil' => $cert['valid_until']
                 ];

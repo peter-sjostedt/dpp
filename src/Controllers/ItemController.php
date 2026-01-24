@@ -26,7 +26,7 @@ class ItemController {
 
     public function show(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.item_number, pv.size, pv.color_brand, p.product_name
+            'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
              LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
@@ -42,9 +42,9 @@ class ItemController {
         Response::success($item);
     }
 
-    public function showByUid(array $params): void {
+    public function showBySerial(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.item_number, pv.size, pv.color_brand, p.product_name,
+            'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
                     br.brand_name, c.name as company_name
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
@@ -52,9 +52,9 @@ class ItemController {
              LEFT JOIN products p ON pv.product_id = p.id
              LEFT JOIN brands br ON p.brand_id = br.id
              LEFT JOIN companies c ON br.company_id = c.id
-             WHERE i.unique_product_id = ?'
+             WHERE i.serial_number = ?'
         );
-        $stmt->execute([$params['uid']]);
+        $stmt->execute([$params['serial']]);
         $item = $stmt->fetch();
 
         if (!$item) {
@@ -73,26 +73,25 @@ class ItemController {
             Response::error('Batch not found', 404);
         }
 
-        // Generate unique product ID if not provided
-        $uniqueProductId = $data['unique_product_id'] ?? $this->generateUniqueId();
+        // Generate serial number if not provided
+        $serialNumber = $data['serial_number'] ?? $this->generateSerialNumber();
 
-        // Check for duplicate unique_product_id
-        $stmt = $this->db->prepare('SELECT id FROM items WHERE unique_product_id = ?');
-        $stmt->execute([$uniqueProductId]);
+        // Check for duplicate serial_number
+        $stmt = $this->db->prepare('SELECT id FROM items WHERE serial_number = ?');
+        $stmt->execute([$serialNumber]);
         if ($stmt->fetch()) {
-            Response::error('Unique product ID already exists', 400);
+            Response::error('Serial number already exists', 400);
         }
 
         $stmt = $this->db->prepare(
             'INSERT INTO items (
-                batch_id, unique_product_id, serial_number, data_carrier_type,
+                batch_id, serial_number, data_carrier_type,
                 data_carrier_material, data_carrier_location
-             ) VALUES (?, ?, ?, ?, ?, ?)'
+             ) VALUES (?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['batchId'],
-            $uniqueProductId,
-            $data['serial_number'] ?? null,
+            $serialNumber,
             $data['data_carrier_type'] ?? null,
             $data['data_carrier_material'] ?? null,
             $data['data_carrier_location'] ?? null
@@ -131,22 +130,22 @@ class ItemController {
 
         try {
             $stmt = $this->db->prepare(
-                'INSERT INTO items (batch_id, unique_product_id, data_carrier_type, data_carrier_material, data_carrier_location)
+                'INSERT INTO items (batch_id, serial_number, data_carrier_type, data_carrier_material, data_carrier_location)
                  VALUES (?, ?, ?, ?, ?)'
             );
 
             for ($i = 0; $i < $quantity; $i++) {
-                $uniqueProductId = $this->generateUniqueId($prefix);
+                $serialNumber = $this->generateSerialNumber($prefix);
                 $stmt->execute([
                     $params['batchId'],
-                    $uniqueProductId,
+                    $serialNumber,
                     $dataCarrierType,
                     $dataCarrierMaterial,
                     $dataCarrierLocation
                 ]);
                 $createdIds[] = [
                     'id' => (int)$this->db->lastInsertId(),
-                    'unique_product_id' => $uniqueProductId
+                    'serial_number' => $serialNumber
                 ];
             }
 
@@ -174,7 +173,7 @@ class ItemController {
         Response::success(['deleted' => (int)$params['id']]);
     }
 
-    private function generateUniqueId(string $prefix = 'DPP'): string {
+    private function generateSerialNumber(string $prefix = 'DPP'): string {
         return $prefix . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . time();
     }
 }

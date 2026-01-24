@@ -14,7 +14,7 @@ class FactoryMaterialCompositionController {
 
     public function index(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT * FROM factory_material_compositions WHERE factory_material_id = ? ORDER BY content_percentage DESC'
+            'SELECT * FROM factory_material_compositions WHERE factory_material_id = ? ORDER BY percentage DESC'
         );
         $stmt->execute([$params['materialId']]);
         Response::success($stmt->fetchAll());
@@ -22,7 +22,7 @@ class FactoryMaterialCompositionController {
 
     public function create(array $params): void {
         $data = Validator::getJsonBody();
-        Validator::required($data, ['content_name', 'content_percentage']);
+        Validator::required($data, ['fiber_type', 'percentage']);
 
         // Verify material exists
         $stmt = $this->db->prepare('SELECT id FROM factory_materials WHERE id = ?');
@@ -33,15 +33,15 @@ class FactoryMaterialCompositionController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO factory_material_compositions (
-                factory_material_id, content_name, content_percentage, content_source,
+                factory_material_id, fiber_type, percentage, fiber_source,
                 material_trademark, is_recycled, recycled_percentage, recycled_source
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['materialId'],
-            $data['content_name'],
-            $data['content_percentage'],
-            $data['content_source'] ?? null,
+            $data['fiber_type'],
+            $data['percentage'],
+            $data['fiber_source'] ?? null,
             $data['material_trademark'] ?? null,
             $data['is_recycled'] ?? false,
             $data['recycled_percentage'] ?? null,
@@ -74,9 +74,9 @@ class FactoryMaterialCompositionController {
 
         $stmt = $this->db->prepare(
             'UPDATE factory_material_compositions SET
-                content_name = COALESCE(?, content_name),
-                content_percentage = COALESCE(?, content_percentage),
-                content_source = COALESCE(?, content_source),
+                fiber_type = COALESCE(?, fiber_type),
+                percentage = COALESCE(?, percentage),
+                fiber_source = COALESCE(?, fiber_source),
                 material_trademark = COALESCE(?, material_trademark),
                 is_recycled = COALESCE(?, is_recycled),
                 recycled_percentage = COALESCE(?, recycled_percentage),
@@ -84,9 +84,9 @@ class FactoryMaterialCompositionController {
             WHERE id = ?'
         );
         $stmt->execute([
-            $data['content_name'] ?? null,
-            $data['content_percentage'] ?? null,
-            $data['content_source'] ?? null,
+            $data['fiber_type'] ?? null,
+            $data['percentage'] ?? null,
+            $data['fiber_source'] ?? null,
             $data['material_trademark'] ?? null,
             $data['is_recycled'] ?? null,
             $data['recycled_percentage'] ?? null,
