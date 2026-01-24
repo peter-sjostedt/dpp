@@ -33,14 +33,15 @@ class FactoryMaterialCertificationController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO factory_material_certifications (
-                factory_material_id, certification_type, certification_other,
+                factory_material_id, certification_type, certification_other, scope,
                 certificate_number, valid_from, valid_until, document_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)'
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['materialId'],
             $data['certification_type'],
             $data['certification_other'] ?? null,
+            $data['scope'] ?? 'material',
             $data['certificate_number'] ?? null,
             $data['valid_from'] ?? null,
             $data['valid_until'] ?? null,
@@ -75,6 +76,7 @@ class FactoryMaterialCertificationController {
             'UPDATE factory_material_certifications SET
                 certification_type = COALESCE(?, certification_type),
                 certification_other = COALESCE(?, certification_other),
+                scope = COALESCE(?, scope),
                 certificate_number = COALESCE(?, certificate_number),
                 valid_from = COALESCE(?, valid_from),
                 valid_until = COALESCE(?, valid_until),
@@ -84,6 +86,7 @@ class FactoryMaterialCertificationController {
         $stmt->execute([
             $data['certification_type'] ?? null,
             $data['certification_other'] ?? null,
+            $data['scope'] ?? null,
             $data['certificate_number'] ?? null,
             $data['valid_from'] ?? null,
             $data['valid_until'] ?? null,

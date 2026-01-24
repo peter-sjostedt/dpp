@@ -141,6 +141,12 @@
                     <input type="date" id="cert_valid_from">
                     <label>Giltig till:</label>
                     <input type="date" id="cert_valid_until">
+                    <label>Scope:</label>
+                    <select id="cert_scope">
+                        <option value="material">Material</option>
+                        <option value="product">Product</option>
+                        <option value="facility">Facility</option>
+                    </select>
                     <label>Dokument-URL:</label>
                     <input type="text" id="cert_document_url" placeholder="https://...">
                     <button class="btn-post" onclick="addCertification()">Lägg till</button>
@@ -275,6 +281,7 @@
             api('POST', '/api/materials/' + getMaterialId() + '/certifications', {
                 certification_type: document.getElementById('cert_type').value,
                 certification_other: document.getElementById('cert_other').value || null,
+                scope: document.getElementById('cert_scope').value,
                 certificate_number: document.getElementById('cert_number').value || null,
                 valid_from: document.getElementById('cert_valid_from').value || null,
                 valid_until: document.getElementById('cert_valid_until').value || null,
