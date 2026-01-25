@@ -35,6 +35,7 @@
 <body>
     <div class="header">
         <a href="test.php">&larr; Tillbaka</a>
+        <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Companies</h1>
     </div>
 

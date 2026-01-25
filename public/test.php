@@ -26,6 +26,7 @@
         <a href="test-items.php">Items</a>
         <a href="test-suppliers.php">Suppliers</a>
         <a href="test-materials.php">Materials</a>
+        <a href="docs/dataflow.html" style="background: #2196F3;">Dataflöde</a>
     </div>
 </body>
 </html>
