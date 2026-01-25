@@ -13,12 +13,15 @@ class ProductVariantController {
     }
 
     public function index(array $params): void {
+        // Endast varianter som har batches med items
         $stmt = $this->db->prepare(
-            'SELECT pv.*, p.product_name
+            'SELECT DISTINCT pv.*, p.product_name
              FROM product_variants pv
              LEFT JOIN products p ON pv.product_id = p.id
-             WHERE pv.product_id = ?
-             ORDER BY pv.created_at DESC'
+             JOIN batches b ON b.product_variant_id = pv.id
+             JOIN items i ON i.batch_id = b.id
+             WHERE pv.product_id = ? AND pv._is_active = TRUE
+             ORDER BY pv.size, pv.color_name'
         );
         $stmt->execute([$params['productId']]);
         Response::success($stmt->fetchAll());
@@ -64,7 +67,7 @@ class ProductVariantController {
         $stmt = $this->db->prepare(
             'INSERT INTO product_variants (
                 product_id, sku, size, size_system,
-                color_name, color_code, is_active
+                color_name, color_code, _is_active
              ) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
@@ -74,7 +77,7 @@ class ProductVariantController {
             $data['size_system'] ?? null,
             $data['color_name'] ?? null,
             $data['color_code'] ?? null,
-            $data['is_active'] ?? true
+            $data['_is_active'] ?? true
         ]);
 
         $id = $this->db->lastInsertId();
@@ -106,7 +109,7 @@ class ProductVariantController {
                 size_system = COALESCE(?, size_system),
                 color_name = COALESCE(?, color_name),
                 color_code = COALESCE(?, color_code),
-                is_active = COALESCE(?, is_active)
+                _is_active = COALESCE(?, _is_active)
              WHERE id = ?'
         );
         $stmt->execute([
@@ -115,7 +118,7 @@ class ProductVariantController {
             $data['size_system'] ?? null,
             $data['color_name'] ?? null,
             $data['color_code'] ?? null,
-            $data['is_active'] ?? null,
+            $data['_is_active'] ?? null,
             $params['id']
         ]);
 

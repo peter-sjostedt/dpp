@@ -26,7 +26,8 @@ class ItemController {
 
     public function show(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name
+            'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
+                    p.data_carrier_type, p.data_carrier_material, p.data_carrier_location
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
              LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
@@ -42,9 +43,10 @@ class ItemController {
         Response::success($item);
     }
 
-    public function showBySerial(array $params): void {
+    public function showBySgtin(array $params): void {
         $stmt = $this->db->prepare(
             'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
+                    p.data_carrier_type, p.data_carrier_material, p.data_carrier_location,
                     br.brand_name, c.name as company_name
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
@@ -52,9 +54,9 @@ class ItemController {
              LEFT JOIN products p ON pv.product_id = p.id
              LEFT JOIN brands br ON p.brand_id = br.id
              LEFT JOIN companies c ON br.company_id = c.id
-             WHERE i.serial_number = ?'
+             WHERE i.sgtin = ?'
         );
-        $stmt->execute([$params['serial']]);
+        $stmt->execute([$params['sgtin']]);
         $item = $stmt->fetch();
 
         if (!$item) {
@@ -66,35 +68,39 @@ class ItemController {
     public function create(array $params): void {
         $data = Validator::getJsonBody();
 
-        // Verify batch exists
-        $stmt = $this->db->prepare('SELECT id FROM batches WHERE id = ?');
+        // Verify batch exists and get product GTIN
+        $stmt = $this->db->prepare(
+            'SELECT b.id, p.gtin
+             FROM batches b
+             JOIN product_variants pv ON b.product_variant_id = pv.id
+             JOIN products p ON pv.product_id = p.id
+             WHERE b.id = ?'
+        );
         $stmt->execute([$params['batchId']]);
-        if (!$stmt->fetch()) {
+        $batch = $stmt->fetch();
+        if (!$batch) {
             Response::error('Batch not found', 404);
         }
 
-        // Generate serial number if not provided
-        $serialNumber = $data['serial_number'] ?? $this->generateSerialNumber();
+        // Generate sgtin if not provided
+        $sgtin = $data['sgtin'] ?? $this->generateSgtin($batch['gtin']);
 
-        // Check for duplicate serial_number
-        $stmt = $this->db->prepare('SELECT id FROM items WHERE serial_number = ?');
-        $stmt->execute([$serialNumber]);
+        // Check for duplicate sgtin
+        $stmt = $this->db->prepare('SELECT id FROM items WHERE sgtin = ?');
+        $stmt->execute([$sgtin]);
         if ($stmt->fetch()) {
-            Response::error('Serial number already exists', 400);
+            Response::error('SGTIN already exists', 400);
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO items (
-                batch_id, serial_number, data_carrier_type,
-                data_carrier_material, data_carrier_location
-             ) VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO items (batch_id, product_variant_id, tid, sgtin)
+             SELECT ?, product_variant_id, ?, ? FROM batches WHERE id = ?'
         );
         $stmt->execute([
             $params['batchId'],
-            $serialNumber,
-            $data['data_carrier_type'] ?? null,
-            $data['data_carrier_material'] ?? null,
-            $data['data_carrier_location'] ?? null
+            $data['tid'] ?? null,
+            $sgtin,
+            $params['batchId']
         ]);
 
         $id = $this->db->lastInsertId();
@@ -113,39 +119,40 @@ class ItemController {
             Response::error('Quantity must be between 1 and 1000', 400);
         }
 
-        // Verify batch exists
-        $stmt = $this->db->prepare('SELECT id FROM batches WHERE id = ?');
+        // Verify batch exists and get product GTIN + variant id
+        $stmt = $this->db->prepare(
+            'SELECT b.id, b.product_variant_id, p.gtin
+             FROM batches b
+             JOIN product_variants pv ON b.product_variant_id = pv.id
+             JOIN products p ON pv.product_id = p.id
+             WHERE b.id = ?'
+        );
         $stmt->execute([$params['batchId']]);
-        if (!$stmt->fetch()) {
+        $batch = $stmt->fetch();
+        if (!$batch) {
             Response::error('Batch not found', 404);
         }
 
         $prefix = $data['prefix'] ?? 'DPP';
-        $dataCarrierType = $data['data_carrier_type'] ?? null;
-        $dataCarrierMaterial = $data['data_carrier_material'] ?? null;
-        $dataCarrierLocation = $data['data_carrier_location'] ?? null;
 
         $createdIds = [];
         $this->db->beginTransaction();
 
         try {
             $stmt = $this->db->prepare(
-                'INSERT INTO items (batch_id, serial_number, data_carrier_type, data_carrier_material, data_carrier_location)
-                 VALUES (?, ?, ?, ?, ?)'
+                'INSERT INTO items (batch_id, product_variant_id, sgtin) VALUES (?, ?, ?)'
             );
 
             for ($i = 0; $i < $quantity; $i++) {
-                $serialNumber = $this->generateSerialNumber($prefix);
+                $sgtin = $this->generateSgtin($batch['gtin']);
                 $stmt->execute([
                     $params['batchId'],
-                    $serialNumber,
-                    $dataCarrierType,
-                    $dataCarrierMaterial,
-                    $dataCarrierLocation
+                    $batch['product_variant_id'],
+                    $sgtin
                 ]);
                 $createdIds[] = [
                     'id' => (int)$this->db->lastInsertId(),
-                    'serial_number' => $serialNumber
+                    'sgtin' => $sgtin
                 ];
             }
 
@@ -173,7 +180,9 @@ class ItemController {
         Response::success(['deleted' => (int)$params['id']]);
     }
 
-    private function generateSerialNumber(string $prefix = 'DPP'): string {
-        return $prefix . '-' . strtoupper(bin2hex(random_bytes(4))) . '-' . time();
+    private function generateSgtin(string $gtin): string {
+        // Format: GTIN.NNNNNN (6-digit serial)
+        $serial = str_pad((string)random_int(1, 999999), 6, '0', STR_PAD_LEFT);
+        return $gtin . '.' . $serial;
     }
 }

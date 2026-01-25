@@ -13,10 +13,15 @@ class BrandController {
     }
 
     public function index(array $params): void {
-        $sql = 'SELECT b.*, c.name as company_name
-                FROM brands b
-                LEFT JOIN companies c ON b.company_id = c.id
-                ORDER BY b.created_at DESC';
+        // Endast brands som har produkter med items
+        $sql = 'SELECT DISTINCT br.*, c.name as company_name
+                FROM brands br
+                LEFT JOIN companies c ON br.company_id = c.id
+                JOIN products p ON p.brand_id = br.id
+                JOIN product_variants pv ON pv.product_id = p.id
+                JOIN batches b ON b.product_variant_id = pv.id
+                JOIN items i ON i.batch_id = b.id
+                ORDER BY br.brand_name';
         $stmt = $this->db->query($sql);
         Response::success($stmt->fetchAll());
     }
@@ -52,15 +57,13 @@ class BrandController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO brands (company_id, brand_name, logo_url, brand_website, brand_description, sub_brand, parent_company, trader_name, trader_address)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO brands (company_id, brand_name, logo_url, sub_brand, parent_company, trader_name, trader_address)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $data['company_id'],
             $data['brand_name'],
             $data['logo_url'] ?? null,
-            $data['brand_website'] ?? null,
-            $data['brand_description'] ?? null,
             $data['sub_brand'] ?? null,
             $data['parent_company'] ?? null,
             $data['trader_name'] ?? null,
@@ -84,8 +87,6 @@ class BrandController {
             'UPDATE brands SET
                 brand_name = COALESCE(?, brand_name),
                 logo_url = COALESCE(?, logo_url),
-                brand_website = COALESCE(?, brand_website),
-                brand_description = COALESCE(?, brand_description),
                 sub_brand = COALESCE(?, sub_brand),
                 parent_company = COALESCE(?, parent_company),
                 trader_name = COALESCE(?, trader_name),
@@ -95,8 +96,6 @@ class BrandController {
         $stmt->execute([
             $data['brand_name'] ?? null,
             $data['logo_url'] ?? null,
-            $data['brand_website'] ?? null,
-            $data['brand_description'] ?? null,
             $data['sub_brand'] ?? null,
             $data['parent_company'] ?? null,
             $data['trader_name'] ?? null,

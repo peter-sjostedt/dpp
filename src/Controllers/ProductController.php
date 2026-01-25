@@ -13,14 +13,28 @@ class ProductController {
     }
 
     public function index(array $params): void {
+        // Endast produkter som har items (via variants → batches → items)
         $stmt = $this->db->prepare(
+            'SELECT DISTINCT p.*, b.brand_name
+             FROM products p
+             LEFT JOIN brands b ON p.brand_id = b.id
+             JOIN product_variants pv ON pv.product_id = p.id
+             JOIN batches bat ON bat.product_variant_id = pv.id
+             JOIN items i ON i.batch_id = bat.id
+             WHERE p.brand_id = ? AND p._is_active = TRUE
+             ORDER BY p.product_name'
+        );
+        $stmt->execute([$params['brandId']]);
+        Response::success($stmt->fetchAll());
+    }
+
+    public function indexAll(array $params): void {
+        $stmt = $this->db->query(
             'SELECT p.*, b.brand_name
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
-             WHERE p.brand_id = ?
-             ORDER BY p.created_at DESC'
+             ORDER BY b.brand_name, p.product_name'
         );
-        $stmt->execute([$params['brandId']]);
         Response::success($stmt->fetchAll());
     }
 
@@ -46,7 +60,6 @@ class ProductController {
         $product['sustainability_information'] = $this->getSustainabilityInfo($params['id']);
         $product['certifications'] = $this->getCertifications($params['id']);
         $product['chemical_compliance'] = $this->getChemicalCompliance($params['id']);
-        $product['components'] = $this->getComponents($params['id']);
 
         Response::success($product);
     }
@@ -67,31 +80,41 @@ class ProductController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO products (
-                brand_id, product_name, product_description, product_category,
-                product_type, product_gender, style_number, season,
-                product_image_url, country_of_origin, gtin,
-                description, consumer_website_url, line, garment_type,
-                weight_kg, is_active
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                brand_id, gtin, product_name, description, photo_url,
+                article_number, commodity_code_system, commodity_code_number,
+                year_of_sale, season_of_sale, price_currency, msrp, resale_price,
+                category, product_group, line, garment_type, age_group, gender,
+                market_segment, water_properties, weight_kg, _is_active,
+                data_carrier_type, data_carrier_material, data_carrier_location
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['brandId'],
-            $data['product_name'],
-            $data['product_description'] ?? null,
-            $data['product_category'] ?? null,
-            $data['product_type'] ?? null,
-            $data['product_gender'] ?? null,
-            $data['style_number'] ?? null,
-            $data['season'] ?? null,
-            $data['product_image_url'] ?? null,
-            $data['country_of_origin'] ?? null,
             $data['gtin'] ?? null,
+            $data['product_name'],
             $data['description'] ?? null,
-            $data['consumer_website_url'] ?? null,
+            $data['photo_url'] ?? null,
+            $data['article_number'] ?? null,
+            $data['commodity_code_system'] ?? null,
+            $data['commodity_code_number'] ?? null,
+            $data['year_of_sale'] ?? null,
+            $data['season_of_sale'] ?? null,
+            $data['price_currency'] ?? 'EUR',
+            $data['msrp'] ?? null,
+            $data['resale_price'] ?? null,
+            $data['category'] ?? null,
+            $data['product_group'] ?? null,
             $data['line'] ?? null,
             $data['garment_type'] ?? null,
+            $data['age_group'] ?? null,
+            $data['gender'] ?? null,
+            $data['market_segment'] ?? null,
+            $data['water_properties'] ?? null,
             $data['weight_kg'] ?? null,
-            $data['is_active'] ?? true
+            $data['_is_active'] ?? true,
+            $data['data_carrier_type'] ?? null,
+            $data['data_carrier_material'] ?? null,
+            $data['data_carrier_location'] ?? null
         ]);
 
         $id = $this->db->lastInsertId();
@@ -109,41 +132,59 @@ class ProductController {
 
         $stmt = $this->db->prepare(
             'UPDATE products SET
-                product_name = COALESCE(?, product_name),
-                product_description = COALESCE(?, product_description),
-                product_category = COALESCE(?, product_category),
-                product_type = COALESCE(?, product_type),
-                product_gender = COALESCE(?, product_gender),
-                style_number = COALESCE(?, style_number),
-                season = COALESCE(?, season),
-                product_image_url = COALESCE(?, product_image_url),
-                country_of_origin = COALESCE(?, country_of_origin),
                 gtin = COALESCE(?, gtin),
+                product_name = COALESCE(?, product_name),
                 description = COALESCE(?, description),
-                consumer_website_url = COALESCE(?, consumer_website_url),
+                photo_url = COALESCE(?, photo_url),
+                article_number = COALESCE(?, article_number),
+                commodity_code_system = COALESCE(?, commodity_code_system),
+                commodity_code_number = COALESCE(?, commodity_code_number),
+                year_of_sale = COALESCE(?, year_of_sale),
+                season_of_sale = COALESCE(?, season_of_sale),
+                price_currency = COALESCE(?, price_currency),
+                msrp = COALESCE(?, msrp),
+                resale_price = COALESCE(?, resale_price),
+                category = COALESCE(?, category),
+                product_group = COALESCE(?, product_group),
                 line = COALESCE(?, line),
                 garment_type = COALESCE(?, garment_type),
+                age_group = COALESCE(?, age_group),
+                gender = COALESCE(?, gender),
+                market_segment = COALESCE(?, market_segment),
+                water_properties = COALESCE(?, water_properties),
                 weight_kg = COALESCE(?, weight_kg),
-                is_active = COALESCE(?, is_active)
+                _is_active = COALESCE(?, _is_active),
+                data_carrier_type = COALESCE(?, data_carrier_type),
+                data_carrier_material = COALESCE(?, data_carrier_material),
+                data_carrier_location = COALESCE(?, data_carrier_location)
              WHERE id = ?'
         );
         $stmt->execute([
-            $data['product_name'] ?? null,
-            $data['product_description'] ?? null,
-            $data['product_category'] ?? null,
-            $data['product_type'] ?? null,
-            $data['product_gender'] ?? null,
-            $data['style_number'] ?? null,
-            $data['season'] ?? null,
-            $data['product_image_url'] ?? null,
-            $data['country_of_origin'] ?? null,
             $data['gtin'] ?? null,
+            $data['product_name'] ?? null,
             $data['description'] ?? null,
-            $data['consumer_website_url'] ?? null,
+            $data['photo_url'] ?? null,
+            $data['article_number'] ?? null,
+            $data['commodity_code_system'] ?? null,
+            $data['commodity_code_number'] ?? null,
+            $data['year_of_sale'] ?? null,
+            $data['season_of_sale'] ?? null,
+            $data['price_currency'] ?? null,
+            $data['msrp'] ?? null,
+            $data['resale_price'] ?? null,
+            $data['category'] ?? null,
+            $data['product_group'] ?? null,
             $data['line'] ?? null,
             $data['garment_type'] ?? null,
+            $data['age_group'] ?? null,
+            $data['gender'] ?? null,
+            $data['market_segment'] ?? null,
+            $data['water_properties'] ?? null,
             $data['weight_kg'] ?? null,
-            $data['is_active'] ?? null,
+            $data['_is_active'] ?? null,
+            $data['data_carrier_type'] ?? null,
+            $data['data_carrier_material'] ?? null,
+            $data['data_carrier_location'] ?? null,
             $params['id']
         ]);
 
@@ -188,7 +229,6 @@ class ProductController {
             'sustainability_information' => $this->getSustainabilityInfo($params['id']),
             'certifications' => $this->getCertifications($params['id']),
             'chemical_compliance' => $this->getChemicalCompliance($params['id']),
-            'components' => $this->getComponentsWithMaterials($params['id']),
             'variants' => $this->getVariantsWithDetails($params['id'])
         ];
 
@@ -230,31 +270,6 @@ class ProductController {
         $stmt = $this->db->prepare('SELECT * FROM chemical_compliance WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetchAll();
-    }
-
-    private function getComponents(int|string $productId): array {
-        $stmt = $this->db->prepare('SELECT * FROM product_components WHERE product_id = ? ORDER BY component_type');
-        $stmt->execute([$productId]);
-        return $stmt->fetchAll();
-    }
-
-    private function getComponentsWithMaterials(int|string $productId): array {
-        $stmt = $this->db->prepare('SELECT * FROM product_components WHERE product_id = ? ORDER BY component_type');
-        $stmt->execute([$productId]);
-        $components = $stmt->fetchAll();
-
-        foreach ($components as &$component) {
-            $stmt = $this->db->prepare(
-                'SELECT cm.*, fm.material_name, fm.material_type
-                 FROM component_materials cm
-                 LEFT JOIN factory_materials fm ON cm.factory_material_id = fm.id
-                 WHERE cm.component_id = ?'
-            );
-            $stmt->execute([$component['id']]);
-            $component['materials'] = $stmt->fetchAll();
-        }
-
-        return $components;
     }
 
     private function getVariantsWithDetails(int|string $productId): array {

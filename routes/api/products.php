@@ -3,6 +3,7 @@ use FastRoute\RouteCollector;
 
 return function (RouteCollector $r) {
     // Products
+    $r->addRoute('GET', '/api/products', ['App\Controllers\ProductController', 'indexAll']);
     $r->addRoute('GET', '/api/brands/{brandId:\d+}/products', ['App\Controllers\ProductController', 'index']);
     $r->addRoute('POST', '/api/brands/{brandId:\d+}/products', ['App\Controllers\ProductController', 'create']);
     $r->addRoute('GET', '/api/products/{id:\d+}', ['App\Controllers\ProductController', 'show']);

@@ -15,12 +15,14 @@ class BatchController {
     // ========== Batches CRUD ==========
 
     public function index(array $params): void {
+        // Endast batches som har items
         $stmt = $this->db->prepare(
-            'SELECT b.*, pv.sku, pv.size, pv.color_name
+            'SELECT DISTINCT b.*, pv.sku, pv.size, pv.color_name
              FROM batches b
              LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
+             JOIN items i ON i.batch_id = b.id
              WHERE b.product_variant_id = ?
-             ORDER BY b.created_at DESC'
+             ORDER BY b.production_date DESC'
         );
         $stmt->execute([$params['variantId']]);
         Response::success($stmt->fetchAll());
@@ -62,15 +64,16 @@ class BatchController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO batches (product_variant_id, batch_number, po_number, quantity, production_date)
-             VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO batches (product_variant_id, batch_number, po_number, quantity, production_date, _status)
+             VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['variantId'],
             $data['batch_number'],
             $data['po_number'] ?? null,
             $data['quantity'] ?? null,
-            $data['production_date'] ?? null
+            $data['production_date'] ?? null,
+            $data['status'] ?? 'planned'
         ]);
 
         $id = $this->db->lastInsertId();
@@ -91,7 +94,8 @@ class BatchController {
                 batch_number = COALESCE(?, batch_number),
                 po_number = COALESCE(?, po_number),
                 quantity = COALESCE(?, quantity),
-                production_date = COALESCE(?, production_date)
+                production_date = COALESCE(?, production_date),
+                _status = COALESCE(?, _status)
              WHERE id = ?'
         );
         $stmt->execute([
@@ -99,6 +103,7 @@ class BatchController {
             $data['po_number'] ?? null,
             $data['quantity'] ?? null,
             $data['production_date'] ?? null,
+            $data['status'] ?? null,
             $params['id']
         ]);
 
@@ -158,12 +163,13 @@ class BatchController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO batch_suppliers (batch_id, supplier_id, production_stage) VALUES (?, ?, ?)'
+            'INSERT INTO batch_suppliers (batch_id, supplier_id, production_stage, country_of_origin) VALUES (?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['batchId'],
             $data['supplier_id'],
-            $data['production_stage']
+            $data['production_stage'],
+            $data['country_of_origin'] ?? null
         ]);
 
         Response::success(['id' => (int)$this->db->lastInsertId()], 201);
