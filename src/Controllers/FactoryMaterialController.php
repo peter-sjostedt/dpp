@@ -67,18 +67,18 @@ class FactoryMaterialController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO factory_materials (
-                supplier_id, material_name, material_type, internal_code,
-                material_color, net_weight_per_meter, width_cm
+                supplier_id, material_name, material_type, _internal_code,
+                net_weight_per_meter, width_cm, _is_active
              ) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['supplierId'],
             $data['material_name'],
-            $data['material_type'] ?? null,
-            $data['internal_code'] ?? null,
-            $data['material_color'] ?? null,
+            $data['material_type'] ?? 'textile',
+            $data['_internal_code'] ?? null,
             $data['net_weight_per_meter'] ?? null,
-            $data['width_cm'] ?? null
+            $data['width_cm'] ?? null,
+            $data['_is_active'] ?? true
         ]);
 
         $id = $this->db->lastInsertId();
@@ -98,19 +98,19 @@ class FactoryMaterialController {
             'UPDATE factory_materials SET
                 material_name = COALESCE(?, material_name),
                 material_type = COALESCE(?, material_type),
-                internal_code = COALESCE(?, internal_code),
-                material_color = COALESCE(?, material_color),
+                _internal_code = COALESCE(?, _internal_code),
                 net_weight_per_meter = COALESCE(?, net_weight_per_meter),
-                width_cm = COALESCE(?, width_cm)
+                width_cm = COALESCE(?, width_cm),
+                _is_active = COALESCE(?, _is_active)
              WHERE id = ?'
         );
         $stmt->execute([
             $data['material_name'] ?? null,
             $data['material_type'] ?? null,
-            $data['internal_code'] ?? null,
-            $data['material_color'] ?? null,
+            $data['_internal_code'] ?? null,
             $data['net_weight_per_meter'] ?? null,
             $data['width_cm'] ?? null,
+            $data['_is_active'] ?? null,
             $params['id']
         ]);
 

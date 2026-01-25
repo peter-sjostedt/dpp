@@ -4,273 +4,367 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DPP Dataflöde</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .category-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-        .category-content.open {
-            max-height: 500px;
-        }
-        .category-header {
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .category-header:hover {
-            filter: brightness(0.95);
-        }
-        .chevron {
-            transition: transform 0.3s ease;
-        }
-        .chevron.open {
-            transform: rotate(90deg);
-        }
-    </style>
 </head>
-<body class="bg-gray-100 p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <!-- Tillbaka-länk -->
-        <div class="mb-4">
-            <a href="../test.php" class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium">
-                <span class="mr-1">&larr;</span> Tillbaka till testpanelen
-            </a>
-        </div>
+<body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="text/babel">
+        function DataReuseVisualization() {
+            const [activeCategory, setActiveCategory] = React.useState(null);
+            const [activeFas, setActiveFas] = React.useState('fas1');
 
-        <!-- Rubrik -->
-        <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">DPP Dataflöde</h1>
-            <p class="text-gray-600">Förstå vad du registrerar en gång vs vad som skapas per order</p>
-        </div>
+            const categories = [
+                {
+                    id: 'once',
+                    title: '🔒 Registrera en gång',
+                    subtitle: 'Master data - återanvänds överallt',
+                    color: 'bg-green-100 border-green-500',
+                    headerColor: 'bg-green-500',
+                    fas1: true,
+                    fas2: true,
+                    items: [
+                        { table: 'companies', desc: 'Ditt företag', example: 'VårdTex AB' },
+                        { table: 'brands', desc: 'Dina varumärken', example: 'VårdTex Pro' },
+                        { table: 'suppliers', desc: 'Dina fabriker', example: 'Têxtil Hospitalar Porto' },
+                    ]
+                },
+                {
+                    id: 'material',
+                    title: '🧵 Registrera per tyg',
+                    subtitle: 'Fabrikens tyglager - välj vid produktion',
+                    color: 'bg-blue-100 border-blue-500',
+                    headerColor: 'bg-blue-500',
+                    fas1: true,
+                    fas2: true,
+                    items: [
+                        { table: 'factory_materials', desc: 'Tygtyp', example: 'PolyCotton 65/35 155gsm' },
+                        { table: '↳ compositions', desc: 'Fiberinnehåll', example: '65% Polyester, 35% Bomull' },
+                        { table: '↳ certifications', desc: 'Certifikat', example: 'Oeko-Tex Class I' },
+                        { table: '↳ origins', desc: 'Leverantörskedja', example: 'Indien → Portugal' },
+                    ]
+                },
+                {
+                    id: 'product',
+                    title: '👕 Registrera per produkt',
+                    subtitle: 'Produktstamdata - gäller alla storlekar/färger',
+                    color: 'bg-purple-100 border-purple-500',
+                    headerColor: 'bg-purple-500',
+                    fas1: true,
+                    fas2: true,
+                    items: [
+                        { table: 'products', desc: 'Produktinfo', example: 'Scrubs Tunika' },
+                        { table: '↳ products.gtin', desc: '📱 QR-kodens källa', example: '7350012345001', highlight: 'qr' },
+                        { table: '↳ data_carriers', desc: 'Databärartyp & placering', example: 'QR, care_label, neck' },
+                        { table: '↳ care_instructions', desc: 'Skötselråd', example: 'Industritvätt 85°C' },
+                        { table: '↳ compliance', desc: 'SVHC, mikrofiber', example: 'Nej / Ja' },
+                        { table: '↳ certifications', desc: 'Produktcertifikat', example: 'Oeko-Tex' },
+                        { table: '↳ circularity', desc: 'Återvinning', example: 'Returnera till tvätten' },
+                        { table: '↳ sustainability', desc: 'Hållbarhetstext', example: 'CO2-avtryck' },
+                    ]
+                },
+                {
+                    id: 'variant',
+                    title: '📏 Registrera per variant',
+                    subtitle: 'Storlek + Färg kombination',
+                    color: 'bg-yellow-100 border-yellow-500',
+                    headerColor: 'bg-yellow-500',
+                    fas1: true,
+                    fas2: true,
+                    items: [
+                        { table: 'product_variants', desc: 'SKU', example: 'VT-SCR-TOP-001-CBL-M' },
+                        { table: '', desc: 'Storlek', example: 'M' },
+                        { table: '', desc: 'Färg', example: 'Ceil Blue' },
+                    ]
+                },
+                {
+                    id: 'batch',
+                    title: '📦 Ny per produktionsorder',
+                    subtitle: 'Skapas vid varje beställning',
+                    color: 'bg-orange-100 border-orange-500',
+                    headerColor: 'bg-orange-500',
+                    fas1: true,
+                    fas2: true,
+                    items: [
+                        { table: 'batches', desc: 'Batchnummer, PO, datum, antal', example: 'BATCH-2025-VGR-001' },
+                        { table: '↳ batch_materials', desc: '→ Välj tyg från lager', example: '→ PolyCotton 65/35' },
+                        { table: '↳ batch_suppliers', desc: '→ Välj fabrik', example: '→ Porto' },
+                    ]
+                },
+                {
+                    id: 'item',
+                    title: '🏷️ Unik per plagg (RFID)',
+                    subtitle: 'Varje fysisk artikel får serienummer',
+                    color: 'bg-red-100 border-red-500',
+                    headerColor: 'bg-red-500',
+                    fas1: false,
+                    fas2: true,
+                    items: [
+                        { table: 'items', desc: '📡 RFID-serienummer', example: 'VT-2025-VGR-001-00001', highlight: 'rfid' },
+                        { table: '↳ rfid_tag_id', desc: 'Fysiskt tagg-ID (EPC)', example: '3034257BF400...' },
+                    ]
+                },
+            ];
 
-        <!-- Kategorier -->
-        <div class="space-y-3 mb-8" id="categories">
-            <!-- Genereras med JavaScript -->
-        </div>
+            const fasInfo = {
+                fas1: {
+                    title: 'Fas 1 - QR-kod / Modellnivå',
+                    description: 'DPP per produkttyp. Samma QR-kod för alla plagg av samma modell.',
+                    identifier: 'GTIN från products.gtin',
+                    dppUrl: '/dpp/product/{GTIN}',
+                    example: '/dpp/product/7350012345001',
+                    timeline: '2027-2028',
+                    icon: '📱'
+                },
+                fas2: {
+                    title: 'Fas 2 - RFID / Artikelnivå',
+                    description: 'DPP per plagg. Varje fysiskt plagg har unikt serienummer.',
+                    identifier: 'Serienummer från items.serial_number',
+                    dppUrl: '/dpp/item/{serial_number}',
+                    example: '/dpp/item/VT-2025-VGR-001-00001',
+                    timeline: '2028-2029',
+                    icon: '📡'
+                }
+            };
 
-        <!-- Flödesexempel -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-bold text-gray-800 mb-4">Typiskt flöde</h2>
-            <div class="space-y-3" id="flow-steps">
-                <!-- Genereras med JavaScript -->
-            </div>
-        </div>
+            const currentFas = fasInfo[activeFas];
+            const filteredCategories = categories.filter(cat => cat[activeFas]);
 
-        <!-- Sammanfattning -->
-        <div class="grid md:grid-cols-2 gap-4 mb-8">
-            <div class="bg-green-50 border-2 border-green-500 rounded-lg p-5">
-                <h3 class="font-bold text-green-800 text-lg mb-3">♻️ Registrera en gång</h3>
-                <ul class="space-y-2 text-green-700">
-                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Företag & varumärke</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Fabriker</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Tyger + certifikat</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Produkter + skötselråd</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Varianter (SKU)</li>
-                </ul>
-            </div>
-            <div class="bg-orange-50 border-2 border-orange-500 rounded-lg p-5">
-                <h3 class="font-bold text-orange-800 text-lg mb-3">🆕 Skapas varje gång</h3>
-                <ul class="space-y-2 text-orange-700">
-                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Batch (per order)</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Koppling batch → tyg</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Koppling batch → fabrik</li>
-                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Serienummer (per plagg)</li>
-                </ul>
-            </div>
-        </div>
+            return (
+                <div className="p-4 max-w-4xl mx-auto">
+                    {/* Navigation */}
+                    <a href="../test.php" className="text-blue-600 hover:text-blue-800 mb-4 inline-block">
+                        ← Tillbaka till testpanelen
+                    </a>
 
-        <!-- Nyckelinsikt -->
-        <div class="bg-blue-50 border-l-4 border-blue-500 p-5 rounded-r-lg">
-            <div class="flex items-start">
-                <span class="text-2xl mr-3">💡</span>
-                <p class="text-blue-800">
-                    Vid en typisk order behöver du bara skapa <strong>batch</strong> och <strong>serienummer</strong>.
-                    Allt annat (fabrik, tyg, certifikat, produkt, skötselråd) väljer du från det som redan finns registrerat.
-                </p>
-            </div>
-        </div>
-    </div>
+                    <h1 className="text-2xl font-bold mb-2">DPP Dataflöde</h1>
+                    <p className="text-gray-600 mb-4">Registrera en gång → Återanvänd vid produktion</p>
 
-    <script>
-        const categories = [
-            {
-                id: 'once',
-                title: '🔒 Registrera en gång',
-                subtitle: 'Master data - återanvänds överallt',
-                color: 'green',
-                items: [
-                    { table: 'companies', desc: 'Ditt företag', example: 'VårdTex AB' },
-                    { table: 'brands', desc: 'Dina varumärken', example: 'VårdTex Pro' },
-                    { table: 'suppliers', desc: 'Dina fabriker', example: 'Têxtil Hospitalar Porto' },
-                ]
-            },
-            {
-                id: 'material',
-                title: '🧵 Registrera per tyg',
-                subtitle: 'Fabrikens tyglager - välj vid produktion',
-                color: 'blue',
-                items: [
-                    { table: 'factory_materials', desc: 'Tygtyp', example: 'PolyCotton 65/35 155gsm' },
-                    { table: '↳ compositions', desc: 'Fiberinnehåll', example: '65% Polyester, 35% Bomull' },
-                    { table: '↳ certifications', desc: 'Certifikat', example: 'Oeko-Tex Class I' },
-                    { table: '↳ supply_chain', desc: 'Leverantörskedja', example: 'Indien → Portugal' },
-                ]
-            },
-            {
-                id: 'product',
-                title: '👕 Registrera per produkt',
-                subtitle: 'Produktstamdata - gäller alla storlekar/färger',
-                color: 'purple',
-                items: [
-                    { table: 'products', desc: 'Produktinfo', example: 'Scrubs Tunika, GTIN, pris' },
-                    { table: '↳ care_information', desc: 'Skötselråd', example: 'Industritvätt 85°C' },
-                    { table: '↳ compliance_information', desc: 'SVHC, mikrofiber', example: 'Nej / Ja' },
-                    { table: '↳ certifications', desc: 'Produktcertifikat', example: 'Oeko-Tex' },
-                    { table: '↳ circularity', desc: 'Återvinning', example: 'Returnera till tvätten' },
-                    { table: '↳ sustainability', desc: 'Hållbarhetstext', example: 'CO2-avtryck, tvättcykler' },
-                ]
-            },
-            {
-                id: 'variant',
-                title: '📏 Registrera per variant',
-                subtitle: 'Storlek + Färg kombination',
-                color: 'yellow',
-                items: [
-                    { table: 'product_variants', desc: 'SKU', example: 'VT-SCR-TOP-001-CBL-M' },
-                    { table: '', desc: 'Storlek', example: 'M' },
-                    { table: '', desc: 'Färg', example: 'Ceil Blue' },
-                ]
-            },
-            {
-                id: 'batch',
-                title: '📦 Ny per produktionsorder',
-                subtitle: 'Skapas vid varje beställning',
-                color: 'orange',
-                items: [
-                    { table: 'batches', desc: 'Batchnummer, PO, datum, antal', example: 'BATCH-2025-VGR-001' },
-                    { table: '↳ batch_materials', desc: '→ Välj tyg från lager', example: '→ PolyCotton 65/35' },
-                    { table: '↳ batch_suppliers', desc: '→ Välj fabrik', example: '→ Porto' },
-                ]
-            },
-            {
-                id: 'item',
-                title: '🏷️ Unik per plagg',
-                subtitle: 'Varje fysisk artikel (QR/RFID)',
-                color: 'red',
-                items: [
-                    { table: 'items', desc: 'Serienummer', example: 'VT-2025-VGR-001-00001' },
-                    { table: '', desc: 'Carrier-typ', example: 'RFID / QR' },
-                    { table: '', desc: 'Placering', example: 'Sidficka' },
-                ]
-            },
-        ];
+                    {/* Fas-väljare */}
+                    <div className="flex gap-2 mb-6">
+                        <button
+                            onClick={() => setActiveFas('fas1')}
+                            className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                                activeFas === 'fas1'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                        >
+                            📱 Fas 1 (QR)
+                        </button>
+                        <button
+                            onClick={() => setActiveFas('fas2')}
+                            className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                                activeFas === 'fas2'
+                                    ? 'bg-red-600 text-white'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                        >
+                            📡 Fas 2 (RFID)
+                        </button>
+                    </div>
 
-        const flowExample = [
-            { step: 1, action: 'Registrera fabrik', reuse: '♻️ Återanvänds för alla ordrar' },
-            { step: 2, action: 'Registrera tyg + certifikat', reuse: '♻️ Återanvänds för alla produkter som använder tyget' },
-            { step: 3, action: 'Skapa produkt + skötselråd', reuse: '♻️ Återanvänds för alla varianter och batchar' },
-            { step: 4, action: 'Skapa varianter (S/M/L)', reuse: '♻️ Återanvänds för alla batchar av denna variant' },
-            { step: 5, action: 'Skapa batch + välj tyg', reuse: '🆕 Ny för varje order' },
-            { step: 6, action: 'Generera serienummer', reuse: '🆕 Unikt per plagg' },
-        ];
-
-        const colorClasses = {
-            green: { bg: 'bg-green-100', border: 'border-green-500', header: 'bg-green-500', text: 'text-green-800', headerText: 'text-white' },
-            blue: { bg: 'bg-blue-100', border: 'border-blue-500', header: 'bg-blue-500', text: 'text-blue-800', headerText: 'text-white' },
-            purple: { bg: 'bg-purple-100', border: 'border-purple-500', header: 'bg-purple-500', text: 'text-purple-800', headerText: 'text-white' },
-            yellow: { bg: 'bg-yellow-100', border: 'border-yellow-500', header: 'bg-yellow-500', text: 'text-yellow-800', headerText: 'text-gray-900' },
-            orange: { bg: 'bg-orange-100', border: 'border-orange-500', header: 'bg-orange-500', text: 'text-orange-800', headerText: 'text-white' },
-            red: { bg: 'bg-red-100', border: 'border-red-500', header: 'bg-red-500', text: 'text-red-800', headerText: 'text-white' },
-        };
-
-        function renderCategories() {
-            const container = document.getElementById('categories');
-            container.innerHTML = categories.map(cat => {
-                const colors = colorClasses[cat.color];
-                return `
-                    <div class="rounded-lg overflow-hidden shadow-md border-2 ${colors.border}">
-                        <div class="category-header ${colors.header} px-4 py-3 flex items-center justify-between" onclick="toggleCategory('${cat.id}')">
+                    {/* Fas-info med identifierare */}
+                    <div className={`border-2 rounded-lg p-4 mb-6 ${activeFas === 'fas1' ? 'border-blue-400 bg-blue-50' : 'border-red-400 bg-red-50'}`}>
+                        <div className="flex items-start justify-between">
                             <div>
-                                <h3 class="font-bold ${colors.headerText} text-lg">${cat.title}</h3>
-                                <p class="${colors.headerText} opacity-90 text-sm">${cat.subtitle}</p>
+                                <h2 className={`font-bold ${activeFas === 'fas1' ? 'text-blue-800' : 'text-red-800'}`}>
+                                    {currentFas.icon} {currentFas.title}
+                                </h2>
+                                <p className="text-sm text-gray-600 mt-1">{currentFas.description}</p>
                             </div>
-                            <span class="chevron ${colors.headerText} text-xl" id="chevron-${cat.id}">▶</span>
+                            <div className="text-xs text-gray-500 bg-white px-2 py-1 rounded">{currentFas.timeline}</div>
                         </div>
-                        <div class="category-content ${colors.bg}" id="content-${cat.id}">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="${colors.text} text-left text-sm opacity-75">
-                                        <th class="px-4 py-2 font-medium">Tabell</th>
-                                        <th class="px-4 py-2 font-medium">Beskrivning</th>
-                                        <th class="px-4 py-2 font-medium">Exempel</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="${colors.text}">
-                                    ${cat.items.map(item => `
-                                        <tr class="border-t border-white/50">
-                                            <td class="px-4 py-2 font-mono text-sm">${item.table || '—'}</td>
-                                            <td class="px-4 py-2">${item.desc}</td>
-                                            <td class="px-4 py-2 text-sm opacity-75">${item.example}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
+
+                        {/* Identifierare och URL */}
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                            <div className={`p-2 rounded ${activeFas === 'fas1' ? 'bg-blue-100' : 'bg-red-100'}`}>
+                                <div className={`text-xs font-bold ${activeFas === 'fas1' ? 'text-blue-600' : 'text-red-600'}`}>
+                                    IDENTIFIERARE FRÅN
+                                </div>
+                                <div className="font-mono text-sm mt-1">{currentFas.identifier}</div>
+                            </div>
+                            <div className={`p-2 rounded ${activeFas === 'fas1' ? 'bg-blue-100' : 'bg-red-100'}`}>
+                                <div className={`text-xs font-bold ${activeFas === 'fas1' ? 'text-blue-600' : 'text-red-600'}`}>
+                                    DPP-URL
+                                </div>
+                                <div className="font-mono text-xs mt-1">{currentFas.example}</div>
+                            </div>
                         </div>
                     </div>
-                `;
-            }).join('');
-        }
 
-        function renderFlowSteps() {
-            const container = document.getElementById('flow-steps');
-            container.innerHTML = flowExample.map(step => {
-                const isNew = step.reuse.startsWith('🆕');
-                const bgColor = isNew ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200';
-                return `
-                    <div class="flex items-center gap-4 ${bgColor} border rounded-lg p-3">
-                        <div class="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                            ${step.step}
-                        </div>
-                        <div class="flex-1">
-                            <span class="font-medium text-gray-800">${step.action}</span>
-                        </div>
-                        <div class="text-sm ${isNew ? 'text-orange-600' : 'text-green-600'}">
-                            ${step.reuse}
+                    {/* Kategorier */}
+                    <div className="space-y-3 mb-6">
+                        {filteredCategories.map((cat) => (
+                            <div
+                                key={cat.id}
+                                className={`border-l-4 rounded-lg overflow-hidden ${cat.color}`}
+                            >
+                                <div
+                                    className={`${cat.headerColor} text-white p-3 cursor-pointer flex justify-between items-center`}
+                                    onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
+                                >
+                                    <div>
+                                        <h3 className="font-bold">{cat.title}</h3>
+                                        <p className="text-sm opacity-90">{cat.subtitle}</p>
+                                    </div>
+                                    <span className="text-xl">{activeCategory === cat.id ? '−' : '+'}</span>
+                                </div>
+
+                                {activeCategory === cat.id && (
+                                    <div className="p-3">
+                                        <table className="w-full text-sm">
+                                            <tbody>
+                                                {cat.items.map((item, idx) => (
+                                                    <tr key={idx} className={`border-b border-gray-200 last:border-0 ${
+                                                        item.highlight === 'qr' ? 'bg-blue-50' :
+                                                        item.highlight === 'rfid' ? 'bg-red-50' : ''
+                                                    }`}>
+                                                        <td className="py-2 font-mono text-gray-600 w-1/3">
+                                                            {item.highlight === 'qr' && <span className="text-blue-500 mr-1">📱</span>}
+                                                            {item.highlight === 'rfid' && <span className="text-red-500 mr-1">📡</span>}
+                                                            {item.table}
+                                                        </td>
+                                                        <td className={`py-2 w-1/3 ${item.highlight ? 'font-medium' : ''}`}>{item.desc}</td>
+                                                        <td className="py-2 text-gray-500 italic">{item.example}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* QR vs RFID flödesdiagram */}
+                    <div className={`rounded-lg p-4 mb-6 ${activeFas === 'fas1' ? 'bg-blue-50 border border-blue-200' : 'bg-red-50 border border-red-200'}`}>
+                        <h3 className={`font-bold mb-3 ${activeFas === 'fas1' ? 'text-blue-800' : 'text-red-800'}`}>
+                            {activeFas === 'fas1' ? '📱 QR-kod flöde' : '📡 RFID flöde'}
+                        </h3>
+                        <div className="flex items-center gap-2 text-xs flex-wrap">
+                            {activeFas === 'fas1' ? (
+                                <>
+                                    <span className="bg-purple-500 text-white px-2 py-1 rounded">products.gtin</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-gray-300 px-2 py-1 rounded">QR-generator</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-gray-300 px-2 py-1 rounded">Etikett</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-gray-300 px-2 py-1 rounded">📱 Skanna</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-green-500 text-white px-2 py-1 rounded">/dpp/product/{'{GTIN}'}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="bg-orange-500 text-white px-2 py-1 rounded">batch skapas</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-red-500 text-white px-2 py-1 rounded">items.serial_number</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-gray-300 px-2 py-1 rounded">RFID-kodning</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-gray-300 px-2 py-1 rounded">📡 Läs</span>
+                                    <span className="text-gray-400">→</span>
+                                    <span className="bg-green-500 text-white px-2 py-1 rounded">/dpp/item/{'{serial}'}</span>
+                                </>
+                            )}
                         </div>
                     </div>
-                `;
-            }).join('');
+
+                    {/* Sammanfattning */}
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <h3 className="font-bold text-green-800 mb-2">♻️ Registrera en gång</h3>
+                            <ul className="text-sm text-green-700 space-y-1">
+                                <li>• Företag & varumärke</li>
+                                <li>• Fabriker</li>
+                                <li>• Tyger + certifikat</li>
+                                <li>• Produkter + GTIN + skötselråd</li>
+                                <li>• Databärartyp & placering</li>
+                                <li>• Varianter (SKU)</li>
+                            </ul>
+                        </div>
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <h3 className="font-bold text-orange-800 mb-2">🆕 Skapas varje gång</h3>
+                            <ul className="text-sm text-orange-700 space-y-1">
+                                <li>• Batch (per order)</li>
+                                <li>• Koppling batch → tyg</li>
+                                <li>• Koppling batch → fabrik</li>
+                                {activeFas === 'fas2' && (
+                                    <li className="font-medium text-red-700">• 📡 Serienummer (per plagg)</li>
+                                )}
+                            </ul>
+                            {activeFas === 'fas1' && (
+                                <p className="text-xs text-orange-500 mt-2 italic">
+                                    Fas 1: Inga serienummer behövs – QR pekar på GTIN
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Skillnad mellan faserna */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                        <h3 className="font-bold text-amber-800 mb-2">🔄 Skillnad Fas 1 vs Fas 2</h3>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-amber-700">
+                                    <th className="pb-2"></th>
+                                    <th className="pb-2">📱 Fas 1 (QR)</th>
+                                    <th className="pb-2">📡 Fas 2 (RFID)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="text-amber-900">
+                                <tr className="border-t border-amber-200">
+                                    <td className="py-2 font-medium">Identifierare</td>
+                                    <td className="py-2 font-mono text-sm">products.gtin</td>
+                                    <td className="py-2 font-mono text-sm">items.serial_number</td>
+                                </tr>
+                                <tr className="border-t border-amber-200">
+                                    <td className="py-2 font-medium">Databärare</td>
+                                    <td className="py-2">QR-kod på etikett</td>
+                                    <td className="py-2">RFID-chip insydd</td>
+                                </tr>
+                                <tr className="border-t border-amber-200">
+                                    <td className="py-2 font-medium">DPP skapas</td>
+                                    <td className="py-2">1 per produkttyp</td>
+                                    <td className="py-2">1 per fysiskt plagg</td>
+                                </tr>
+                                <tr className="border-t border-amber-200">
+                                    <td className="py-2 font-medium">items-tabell</td>
+                                    <td className="py-2 text-gray-400">❌ Används ej</td>
+                                    <td className="py-2 text-green-700">✅ Serienummer + rfid_tag_id</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Nyckelinsikt */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h3 className="font-bold text-blue-800 mb-2">💡 Nyckelinsikt</h3>
+                        {activeFas === 'fas1' ? (
+                            <p className="text-sm text-blue-700">
+                                I Fas 1 genereras QR-koden från <code className="bg-white px-1 rounded">products.gtin</code>.
+                                Du behöver bara skapa <strong>batch</strong> per order. Alla plagg av samma produkt delar samma QR och DPP.
+                            </p>
+                        ) : (
+                            <p className="text-sm text-blue-700">
+                                I Fas 2 genereras serienummer i <code className="bg-white px-1 rounded">items</code>-tabellen vid batchproduktion.
+                                Varje RFID-tagg innehåller ett unikt <code className="bg-white px-1 rounded">serial_number</code> som pekar på en individuell DPP.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Fas 3 disclaimer */}
+                    <div className="mt-4 text-xs text-gray-400 text-center">
+                        Fas 3 (livscykeldata: reparationer, återvinning) hanteras av hosting-plattformen – utanför vårt scope.
+                    </div>
+                </div>
+            );
         }
 
-        let openCategory = null;
-
-        function toggleCategory(id) {
-            const content = document.getElementById(`content-${id}`);
-            const chevron = document.getElementById(`chevron-${id}`);
-
-            // Close currently open category if different
-            if (openCategory && openCategory !== id) {
-                document.getElementById(`content-${openCategory}`).classList.remove('open');
-                document.getElementById(`chevron-${openCategory}`).classList.remove('open');
-            }
-
-            // Toggle clicked category
-            const isOpen = content.classList.contains('open');
-            if (isOpen) {
-                content.classList.remove('open');
-                chevron.classList.remove('open');
-                openCategory = null;
-            } else {
-                content.classList.add('open');
-                chevron.classList.add('open');
-                openCategory = id;
-            }
-        }
-
-        // Initialize
-        renderCategories();
-        renderFlowSteps();
+        ReactDOM.createRoot(document.getElementById('root')).render(<DataReuseVisualization />);
     </script>
 </body>
 </html>

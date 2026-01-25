@@ -42,49 +42,50 @@ class CircularityController {
             // Update
             $stmt = $this->db->prepare(
                 'UPDATE circularity_information SET
-                    recycled_content_percentage = COALESCE(?, recycled_content_percentage),
-                    recyclability_percentage = COALESCE(?, recyclability_percentage),
+                    performance = COALESCE(?, performance),
+                    recyclability = COALESCE(?, recyclability),
+                    take_back_instructions = COALESCE(?, take_back_instructions),
                     recycling_instructions = COALESCE(?, recycling_instructions),
-                    take_back_program = COALESCE(?, take_back_program),
-                    take_back_program_url = COALESCE(?, take_back_program_url),
-                    repair_services = COALESCE(?, repair_services),
-                    repair_services_url = COALESCE(?, repair_services_url),
-                    expected_lifespan = COALESCE(?, expected_lifespan),
-                    durability_info = COALESCE(?, durability_info)
+                    disassembly_instructions_sorters = COALESCE(?, disassembly_instructions_sorters),
+                    disassembly_instructions_user = COALESCE(?, disassembly_instructions_user),
+                    circular_design_strategy = COALESCE(?, circular_design_strategy),
+                    circular_design_strategy_description = COALESCE(?, circular_design_strategy_description),
+                    repair_instructions = COALESCE(?, repair_instructions)
                  WHERE product_id = ?'
             );
             $stmt->execute([
-                $data['recycled_content_percentage'] ?? null,
-                $data['recyclability_percentage'] ?? null,
+                $data['performance'] ?? null,
+                $data['recyclability'] ?? null,
+                $data['take_back_instructions'] ?? null,
                 $data['recycling_instructions'] ?? null,
-                $data['take_back_program'] ?? null,
-                $data['take_back_program_url'] ?? null,
-                $data['repair_services'] ?? null,
-                $data['repair_services_url'] ?? null,
-                $data['expected_lifespan'] ?? null,
-                $data['durability_info'] ?? null,
+                $data['disassembly_instructions_sorters'] ?? null,
+                $data['disassembly_instructions_user'] ?? null,
+                $data['circular_design_strategy'] ?? null,
+                $data['circular_design_strategy_description'] ?? null,
+                $data['repair_instructions'] ?? null,
                 $params['productId']
             ]);
         } else {
             // Create
             $stmt = $this->db->prepare(
                 'INSERT INTO circularity_information (
-                    product_id, recycled_content_percentage, recyclability_percentage,
-                    recycling_instructions, take_back_program, take_back_program_url,
-                    repair_services, repair_services_url, expected_lifespan, durability_info
+                    product_id, performance, recyclability, take_back_instructions,
+                    recycling_instructions, disassembly_instructions_sorters,
+                    disassembly_instructions_user, circular_design_strategy,
+                    circular_design_strategy_description, repair_instructions
                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
                 $params['productId'],
-                $data['recycled_content_percentage'] ?? null,
-                $data['recyclability_percentage'] ?? null,
+                $data['performance'] ?? null,
+                $data['recyclability'] ?? null,
+                $data['take_back_instructions'] ?? null,
                 $data['recycling_instructions'] ?? null,
-                $data['take_back_program'] ?? 0,
-                $data['take_back_program_url'] ?? null,
-                $data['repair_services'] ?? 0,
-                $data['repair_services_url'] ?? null,
-                $data['expected_lifespan'] ?? null,
-                $data['durability_info'] ?? null
+                $data['disassembly_instructions_sorters'] ?? null,
+                $data['disassembly_instructions_user'] ?? null,
+                $data['circular_design_strategy'] ?? null,
+                $data['circular_design_strategy_description'] ?? null,
+                $data['repair_instructions'] ?? null
             ]);
         }
 

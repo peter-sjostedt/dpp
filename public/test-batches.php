@@ -1,4 +1,8 @@
-<?php // Batches Test ?>
+<?php
+require_once __DIR__ . '/../src/Config/Auth.php';
+use App\Config\Auth;
+Auth::requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -36,6 +40,7 @@
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Batches</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">🆕 Per produktionsorder</p>
     </div>
 
     <div class="container">
@@ -66,6 +71,13 @@
                     <input type="date" id="production_date">
                     <label>Antal:</label>
                     <input type="number" id="quantity" placeholder="100">
+                    <label>Status:</label>
+                    <select id="status">
+                        <option value="planned">Planned</option>
+                        <option value="in_production">In Production</option>
+                        <option value="completed">Completed</option>
+                        <option value="shipped">Shipped</option>
+                    </select>
                     <button class="btn-post" onclick="create()">Skapa</button>
                 </div>
             </div>
@@ -93,6 +105,8 @@
                         <option value="spinning">Spinning</option>
                         <option value="other">Other</option>
                     </select>
+                    <label>Ursprungsland (2 bokstäver):</label>
+                    <input type="text" id="country_of_origin" placeholder="PT" maxlength="2">
                     <button class="btn-get" onclick="api('GET', '/api/batches/' + getBatchId() + '/suppliers')">Lista suppliers</button>
                     <button class="btn-post" onclick="addSupplier()">Lägg till supplier</button>
                 </div>
@@ -128,14 +142,30 @@
         }
 
         function getVariantId() {
-            return document.getElementById('variant_id').value;
+            const val = document.getElementById('variant_id').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en variant först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         function getBatchId() {
-            return document.getElementById('batch_id_select').value;
+            const val = document.getElementById('batch_id_select').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en batch först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         async function api(method, endpoint, data = null) {
+            // Prevent API calls with invalid IDs
+            if (endpoint.includes('/null/') || endpoint.includes('//')) {
+                return;
+            }
             const opts = { method, headers: { 'Content-Type': 'application/json' } };
             if (data) opts.body = JSON.stringify(data);
             try {
@@ -256,14 +286,16 @@
                 batch_number: document.getElementById('batch_number').value,
                 po_number: document.getElementById('po_number').value || null,
                 production_date: document.getElementById('production_date').value || null,
-                quantity: parseInt(document.getElementById('quantity').value) || null
+                quantity: parseInt(document.getElementById('quantity').value) || null,
+                status: document.getElementById('status').value
             }).then(() => loadBatches());
         }
 
         function addSupplier() {
             api('POST', '/api/batches/' + document.getElementById('batch_id_select').value + '/suppliers', {
                 supplier_id: parseInt(document.getElementById('supplier_id').value),
-                production_stage: document.getElementById('production_stage').value
+                production_stage: document.getElementById('production_stage').value,
+                country_of_origin: document.getElementById('country_of_origin').value || null
             });
         }
 

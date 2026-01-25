@@ -1,4 +1,8 @@
-<?php // Items Test ?>
+<?php
+require_once __DIR__ . '/../src/Config/Auth.php';
+use App\Config\Auth;
+Auth::requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -36,6 +40,7 @@
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Items (Individuella produkter)</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">🆕 Per plagg (Fas 2)</p>
     </div>
 
     <div class="container">
@@ -60,8 +65,8 @@
             <div class="section" id="sec-create">
                 <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa enskild item</h2></div>
                 <div class="section-content">
-                    <label>Serienummer (genereras automatiskt om tomt):</label>
-                    <input type="text" id="serial_number" placeholder="DPP-XXXXXXXX-TIMESTAMP">
+                    <label>SGTIN (genereras automatiskt om tomt):</label>
+                    <input type="text" id="sgtin" placeholder="7350012345001.000001">
                     <label>Data Carrier Type:</label>
                     <input type="text" id="data_carrier_type" placeholder="QR, NFC, RFID">
                     <button class="btn-post" onclick="create()">Skapa</button>
@@ -108,10 +113,20 @@
         }
 
         function getItemId() {
-            return document.getElementById('item_id_select').value;
+            const val = document.getElementById('item_id_select').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en item först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         async function api(method, endpoint, data = null) {
+            // Prevent API calls with invalid IDs
+            if (endpoint.includes('/null/') || endpoint.includes('//') || endpoint.endsWith('/null')) {
+                return;
+            }
             const opts = { method, headers: { 'Content-Type': 'application/json' } };
             if (data) opts.body = JSON.stringify(data);
             try {
@@ -198,7 +213,7 @@
                 const json = await res.json();
                 if (json.data) {
                     json.data.forEach(i => {
-                        select.innerHTML += `<option value="${i.id}">${i.id}: ${i.serial_number}</option>`;
+                        select.innerHTML += `<option value="${i.id}">${i.id}: ${i.sgtin}</option>`;
                     });
                 }
             }
@@ -228,8 +243,8 @@
             const data = {
                 data_carrier_type: document.getElementById('data_carrier_type').value || null
             };
-            const serial = document.getElementById('serial_number').value;
-            if (serial) data.serial_number = serial;
+            const sgtin = document.getElementById('sgtin').value;
+            if (sgtin) data.sgtin = sgtin;
 
             api('POST', '/api/batches/' + document.getElementById('batch_id').value + '/items', data)
                 .then(() => loadItems());

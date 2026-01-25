@@ -47,17 +47,15 @@ class CertificationController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO certifications (
-                product_id, certification_name, certification_body, certificate_number,
-                certification_url, valid_from, valid_until
-             ) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                product_id, certification_name, certification_other,
+                validation_document_url, valid_until
+             ) VALUES (?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['productId'],
             $data['certification_name'],
-            $data['certification_body'] ?? null,
-            $data['certificate_number'] ?? null,
-            $data['certification_url'] ?? null,
-            $data['valid_from'] ?? null,
+            $data['certification_other'] ?? null,
+            $data['validation_document_url'] ?? null,
             $data['valid_until'] ?? null
         ]);
 
@@ -77,19 +75,15 @@ class CertificationController {
         $stmt = $this->db->prepare(
             'UPDATE certifications SET
                 certification_name = COALESCE(?, certification_name),
-                certification_body = COALESCE(?, certification_body),
-                certificate_number = COALESCE(?, certificate_number),
-                certification_url = COALESCE(?, certification_url),
-                valid_from = COALESCE(?, valid_from),
+                certification_other = COALESCE(?, certification_other),
+                validation_document_url = COALESCE(?, validation_document_url),
                 valid_until = COALESCE(?, valid_until)
              WHERE id = ?'
         );
         $stmt->execute([
             $data['certification_name'] ?? null,
-            $data['certification_body'] ?? null,
-            $data['certificate_number'] ?? null,
-            $data['certification_url'] ?? null,
-            $data['valid_from'] ?? null,
+            $data['certification_other'] ?? null,
+            $data['validation_document_url'] ?? null,
             $data['valid_until'] ?? null,
             $params['id']
         ]);

@@ -1,4 +1,8 @@
-<?php // Companies Test ?>
+<?php
+require_once __DIR__ . '/../src/Config/Auth.php';
+use App\Config\Auth;
+Auth::requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -37,6 +41,7 @@
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Companies</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
     </div>
 
     <div class="container">

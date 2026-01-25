@@ -42,40 +42,29 @@ class CareInformationController {
             // Update
             $stmt = $this->db->prepare(
                 'UPDATE care_information SET
-                    washing_instructions = COALESCE(?, washing_instructions),
-                    drying_instructions = COALESCE(?, drying_instructions),
-                    ironing_instructions = COALESCE(?, ironing_instructions),
-                    bleaching_instructions = COALESCE(?, bleaching_instructions),
-                    professional_care = COALESCE(?, professional_care),
-                    additional_care_info = COALESCE(?, additional_care_info)
+                    care_image_url = COALESCE(?, care_image_url),
+                    care_text = COALESCE(?, care_text),
+                    safety_information = COALESCE(?, safety_information)
                  WHERE product_id = ?'
             );
             $stmt->execute([
-                $data['washing_instructions'] ?? null,
-                $data['drying_instructions'] ?? null,
-                $data['ironing_instructions'] ?? null,
-                $data['bleaching_instructions'] ?? null,
-                $data['professional_care'] ?? null,
-                $data['additional_care_info'] ?? null,
+                $data['care_image_url'] ?? null,
+                $data['care_text'] ?? null,
+                $data['safety_information'] ?? null,
                 $params['productId']
             ]);
         } else {
             // Create
             $stmt = $this->db->prepare(
                 'INSERT INTO care_information (
-                    product_id, washing_instructions, drying_instructions,
-                    ironing_instructions, bleaching_instructions,
-                    professional_care, additional_care_info
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    product_id, care_image_url, care_text, safety_information
+                 ) VALUES (?, ?, ?, ?)'
             );
             $stmt->execute([
                 $params['productId'],
-                $data['washing_instructions'] ?? null,
-                $data['drying_instructions'] ?? null,
-                $data['ironing_instructions'] ?? null,
-                $data['bleaching_instructions'] ?? null,
-                $data['professional_care'] ?? null,
-                $data['additional_care_info'] ?? null
+                $data['care_image_url'] ?? null,
+                $data['care_text'] ?? null,
+                $data['safety_information'] ?? null
             ]);
         }
 

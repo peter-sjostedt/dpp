@@ -48,36 +48,36 @@ class ComplianceController {
             // Update
             $stmt = $this->db->prepare(
                 'UPDATE compliance_information SET
-                    eu_declaration_url = COALESCE(?, eu_declaration_url),
-                    reach_compliant = COALESCE(?, reach_compliant),
-                    svhc_presence = COALESCE(?, svhc_presence),
+                    contains_svhc = COALESCE(?, contains_svhc),
                     svhc_details = COALESCE(?, svhc_details),
-                    safety_data_sheet_url = COALESCE(?, safety_data_sheet_url)
+                    scan4chem_link = COALESCE(?, scan4chem_link),
+                    sheds_microfibers = COALESCE(?, sheds_microfibers),
+                    traceability_provider = COALESCE(?, traceability_provider)
                  WHERE product_id = ?'
             );
             $stmt->execute([
-                $data['eu_declaration_url'] ?? null,
-                $data['reach_compliant'] ?? null,
-                $data['svhc_presence'] ?? null,
+                $data['contains_svhc'] ?? null,
                 $data['svhc_details'] ?? null,
-                $data['safety_data_sheet_url'] ?? null,
+                $data['scan4chem_link'] ?? null,
+                $data['sheds_microfibers'] ?? null,
+                $data['traceability_provider'] ?? null,
                 $params['productId']
             ]);
         } else {
             // Create
             $stmt = $this->db->prepare(
                 'INSERT INTO compliance_information (
-                    product_id, eu_declaration_url, reach_compliant,
-                    svhc_presence, svhc_details, safety_data_sheet_url
+                    product_id, contains_svhc, svhc_details,
+                    scan4chem_link, sheds_microfibers, traceability_provider
                  ) VALUES (?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
                 $params['productId'],
-                $data['eu_declaration_url'] ?? null,
-                $data['reach_compliant'] ?? 0,
-                $data['svhc_presence'] ?? 0,
+                $data['contains_svhc'] ?? false,
                 $data['svhc_details'] ?? null,
-                $data['safety_data_sheet_url'] ?? null
+                $data['scan4chem_link'] ?? null,
+                $data['sheds_microfibers'] ?? null,
+                $data['traceability_provider'] ?? null
             ]);
         }
 
@@ -114,7 +114,7 @@ class ComplianceController {
     public function addChemical(array $params): void {
         $data = Validator::getJsonBody();
 
-        if ($error = Validator::required($data, ['chemical_name'])) {
+        if ($error = Validator::required($data, ['compliance_standard'])) {
             Response::error($error);
         }
 
@@ -127,17 +127,13 @@ class ComplianceController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO chemical_compliance (
-                product_id, chemical_name, cas_number, concentration,
-                unit, regulation_reference
-             ) VALUES (?, ?, ?, ?, ?, ?)'
+                product_id, compliance_standard, validation_document_url
+             ) VALUES (?, ?, ?)'
         );
         $stmt->execute([
             $params['productId'],
-            $data['chemical_name'],
-            $data['cas_number'] ?? null,
-            $data['concentration'] ?? null,
-            $data['unit'] ?? null,
-            $data['regulation_reference'] ?? null
+            $data['compliance_standard'],
+            $data['validation_document_url'] ?? null
         ]);
 
         $id = $this->db->lastInsertId();

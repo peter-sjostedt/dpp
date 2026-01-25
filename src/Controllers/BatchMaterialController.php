@@ -14,7 +14,7 @@ class BatchMaterialController {
 
     public function index(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT bm.*, fm.material_name, fm.material_type, fm.internal_code
+            'SELECT bm.*, fm.material_name, fm.material_type, fm._internal_code
              FROM batch_materials bm
              JOIN factory_materials fm ON bm.factory_material_id = fm.id
              WHERE bm.batch_id = ?
@@ -60,7 +60,7 @@ class BatchMaterialController {
 
     public function show(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT bm.*, fm.material_name, fm.material_type, fm.internal_code
+            'SELECT bm.*, fm.material_name, fm.material_type, fm._internal_code
              FROM batch_materials bm
              JOIN factory_materials fm ON bm.factory_material_id = fm.id
              WHERE bm.id = ?'
@@ -114,7 +114,7 @@ class BatchMaterialController {
     // Get materials by factory material ID (reverse lookup)
     public function indexByMaterial(array $params): void {
         $stmt = $this->db->prepare(
-            'SELECT bm.*, b.batch_number, pv.item_number
+            'SELECT bm.*, b.batch_number, pv.sku
              FROM batch_materials bm
              JOIN batches b ON bm.batch_id = b.id
              JOIN product_variants pv ON b.product_variant_id = pv.id

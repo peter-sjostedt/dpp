@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPP Referensdokument - Datamodell</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f8fafc;
+            color: #1e293b;
+            font-size: 14px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        h1 { font-size: 24px; font-weight: bold; margin-bottom: 4px; }
+        .subtitle { color: #64748b; margin-bottom: 16px; }
+
+        /* Navigation */
+        .nav-link {
+            display: inline-block;
+            margin-bottom: 16px;
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .nav-link:hover { text-decoration: underline; }
+
+        /* Tabs */
+        .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+        .tab {
+            padding: 10px 16px;
+            font-weight: 500;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            background: #f1f5f9;
+            color: #64748b;
+            border: none;
+            font-size: 14px;
+        }
+        .tab:hover { background: #e2e8f0; }
+        .tab.active { background: #334155; color: white; }
+
+        /* Fas Toggle */
+        .fas-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+        .fas-btn {
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            border: none;
+            background: #e2e8f0;
+            color: #475569;
+        }
+        .fas-btn.active { background: #2563eb; color: white; }
+
+        /* Info boxes */
+        .info-box { background: #f1f5f9; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
+        .info-box .title { font-weight: bold; }
+        .info-box .desc { color: #64748b; font-size: 12px; margin-top: 4px; }
+        .info-box code {
+            display: inline-block;
+            background: #cbd5e1;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 8px;
+            font-family: monospace;
+        }
+
+        /* Flow diagram */
+        .flow-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px; }
+        .flow-step {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            background: #334155;
+            color: white;
+        }
+        .flow-step.inactive { background: #f1f5f9; color: #94a3b8; }
+        .flow-step .label { font-size: 12px; }
+        .flow-step .arrow { font-size: 18px; }
+
+        /* Summary boxes */
+        .summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .summary-box { border-radius: 8px; padding: 12px; border: 1px solid; }
+        .summary-box.green { background: #f0fdf4; border-color: #bbf7d0; }
+        .summary-box.orange { background: #fff7ed; border-color: #fed7aa; }
+        .summary-box .title { font-weight: bold; margin-bottom: 8px; }
+        .summary-box.green .title { color: #166534; }
+        .summary-box.orange .title { color: #9a3412; }
+        .summary-box ul { margin: 0; padding-left: 0; list-style: none; font-size: 12px; }
+        .summary-box.green ul { color: #15803d; }
+        .summary-box.orange ul { color: #c2410c; }
+        .summary-box li { margin-bottom: 4px; }
+
+        /* Stats */
+        .stats-box { background: #f8fafc; border-radius: 8px; padding: 12px; margin-top: 16px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+        .stat { background: white; border-radius: 6px; padding: 10px; }
+        .stat .value { font-size: 28px; font-weight: bold; color: #334155; }
+        .stat .label { font-size: 11px; color: #64748b; }
+
+        /* QR/RFID comparison */
+        .comparison-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+        .compare-card { border: 2px solid; border-radius: 8px; overflow: hidden; }
+        .compare-card.qr { border-color: #60a5fa; }
+        .compare-card.rfid { border-color: #f87171; }
+        .compare-header { padding: 12px; text-align: center; color: white; }
+        .compare-card.qr .compare-header { background: #3b82f6; }
+        .compare-card.rfid .compare-header { background: #ef4444; }
+        .compare-header .icon { font-size: 24px; margin-bottom: 4px; }
+        .compare-header .title { font-size: 18px; font-weight: bold; }
+        .compare-header .subtitle { font-size: 11px; opacity: 0.8; }
+        .compare-content { padding: 12px; }
+        .compare-item { border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+        .compare-card.qr .compare-item { background: #eff6ff; }
+        .compare-card.rfid .compare-item { background: #fef2f2; }
+        .compare-item .label { font-size: 10px; font-weight: bold; margin-bottom: 4px; }
+        .compare-card.qr .compare-item .label { color: #2563eb; }
+        .compare-card.rfid .compare-item .label { color: #dc2626; }
+        .compare-item code {
+            display: inline-block;
+            background: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: monospace;
+        }
+        .compare-item .mono { font-family: monospace; font-size: 13px; }
+        .compare-item .hint { color: #64748b; font-size: 11px; margin-top: 4px; }
+        .tip-box { background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; padding: 8px; font-size: 11px; color: #854d0e; }
+
+        /* Flow diagram horizontal */
+        .flow-horizontal { background: #f8fafc; border-radius: 8px; padding: 16px; margin: 16px 0; }
+        .flow-horizontal .title { font-weight: bold; color: #334155; margin-bottom: 12px; }
+        .flow-row { display: flex; align-items: center; gap: 8px; font-size: 11px; margin-bottom: 12px; flex-wrap: wrap; }
+        .flow-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; color: white; }
+        .flow-badge.qr { background: #3b82f6; }
+        .flow-badge.rfid { background: #ef4444; }
+        .flow-code { background: #dbeafe; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
+        .flow-code.rfid { background: #fee2e2; }
+        .flow-arrow { color: #94a3b8; }
+        .flow-step-sm { background: #e2e8f0; padding: 4px 8px; border-radius: 4px; }
+        .flow-result { background: #22c55e; color: white; padding: 4px 8px; border-radius: 4px; }
+
+        /* Tables section */
+        .db-table-box { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin: 16px 0; }
+        .db-table-box table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .db-table-box th { text-align: left; padding: 8px; background: #f1f5f9; }
+        .db-table-box td { padding: 8px; border-top: 1px solid #e2e8f0; }
+        .db-table-box .check { color: #16a34a; text-align: center; }
+        .db-table-box .dash { color: #94a3b8; text-align: center; }
+        .db-table-box .mono { font-family: monospace; }
+        .db-table-box tr.highlight { background: #fef2f2; }
+
+        /* Insight box */
+        .insight-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px; margin-top: 16px; }
+        .insight-box .title { font-weight: bold; color: #92400e; margin-bottom: 4px; }
+        .insight-box p { font-size: 13px; color: #b45309; margin: 0; }
+        .insight-box code { background: white; padding: 1px 4px; border-radius: 3px; }
+
+        /* Table groups */
+        .table-group { margin-bottom: 12px; border-radius: 8px; overflow: hidden; }
+        .table-group-header {
+            padding: 10px 12px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .table-group-header .title { font-weight: bold; }
+        .table-group-content { padding: 10px; display: none; }
+        .table-group.expanded .table-group-content { display: block; }
+        .table-group.inactive { opacity: 0.5; }
+        .table-group.inactive .table-group-header { background: #e2e8f0 !important; color: #64748b; cursor: default; }
+
+        /* Color variants */
+        .table-group.green .table-group-header { background: #16a34a; }
+        .table-group.green { background: #f0fdf4; border-left: 4px solid #22c55e; }
+        .table-group.blue .table-group-header { background: #2563eb; }
+        .table-group.blue { background: #eff6ff; border-left: 4px solid #3b82f6; }
+        .table-group.purple .table-group-header { background: #9333ea; }
+        .table-group.purple { background: #faf5ff; border-left: 4px solid #a855f7; }
+        .table-group.orange .table-group-header { background: #ea580c; }
+        .table-group.orange { background: #fff7ed; border-left: 4px solid #f97316; }
+        .table-group.red .table-group-header { background: #dc2626; }
+        .table-group.red { background: #fef2f2; border-left: 4px solid #ef4444; }
+
+        /* Table item */
+        .table-item { background: white; border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+        .table-item .name { font-family: monospace; font-weight: bold; color: #1e293b; }
+        .table-item .desc { font-size: 11px; color: #64748b; margin-bottom: 6px; }
+        .table-item .columns { display: flex; flex-wrap: wrap; gap: 4px; }
+        .table-item .col {
+            font-size: 11px;
+            font-family: monospace;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #f1f5f9;
+            color: #475569;
+        }
+        .table-item .col.fk { background: #fef9c3; color: #854d0e; }
+
+        /* Mapping groups */
+        .mapping-group { margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .mapping-header {
+            background: #475569;
+            color: white;
+            padding: 10px 12px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mapping-header .info { }
+        .mapping-header .title { font-weight: bold; }
+        .mapping-header .count { color: #cbd5e1; font-size: 12px; margin-left: 8px; }
+        .mapping-header .table-badge {
+            background: #64748b;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        .mapping-content { background: #f8fafc; padding: 10px; display: none; }
+        .mapping-group.expanded .mapping-content { display: block; }
+        .mapping-content table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .mapping-content th { text-align: left; padding: 6px; color: #64748b; }
+        .mapping-content td { padding: 6px; border-top: 1px solid #e2e8f0; }
+        .mapping-content .nr { font-family: monospace; color: #64748b; width: 70px; }
+        .mapping-content .col { font-family: monospace; color: #334155; }
+
+        /* Warning box */
+        .warning-box {
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 16px;
+        }
+        .warning-box .title { font-weight: bold; font-size: 12px; color: #92400e; }
+        .warning-box ul { margin: 8px 0 0 0; padding-left: 0; list-style: none; font-size: 12px; color: #b45309; }
+        .warning-box li { margin-bottom: 4px; }
+
+        /* Tab content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="../test.php" class="nav-link">&larr; Tillbaka till testpanel</a>
+
+        <h1>DPP Datamodell for Textil</h1>
+        <p class="subtitle">Trace4Value-protokollet mappat till databas</p>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">Oversikt</button>
+            <button class="tab" data-tab="qr-rfid">QR & RFID</button>
+            <button class="tab" data-tab="tables">Tabeller</button>
+            <button class="tab" data-tab="mapping">T4V-mappning</button>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div id="overview" class="tab-content active">
+            <!-- Fas toggle -->
+            <div class="fas-toggle">
+                <button class="fas-btn active" data-fas="fas1">Fas 1 (QR)</button>
+                <button class="fas-btn" data-fas="fas2">Fas 2 (RFID)</button>
+            </div>
+
+            <!-- Fas info -->
+            <div class="info-box" id="fas-info">
+                <div class="title" id="fas-title">Fas 1 - QR / Modellniva</div>
+                <div class="desc" id="fas-desc">DPP per produkttyp. Samma QR for alla plagg av samma modell.</div>
+                <code id="fas-endpoint">/dpp/product/{GTIN}</code>
+            </div>
+
+            <!-- Flow diagram -->
+            <div class="flow-grid" id="flow-grid">
+                <div class="flow-step"><div class="label">Master</div><div class="arrow">&rarr;</div></div>
+                <div class="flow-step"><div class="label">Tyglager</div><div class="arrow">&rarr;</div></div>
+                <div class="flow-step"><div class="label">Produkter</div><div class="arrow">&rarr;</div></div>
+                <div class="flow-step"><div class="label">Batch</div><div class="arrow">&rarr;</div></div>
+                <div class="flow-step" id="flow-items"><div class="label">Artiklar</div><div class="arrow">&rarr;</div></div>
+            </div>
+
+            <!-- Summary boxes -->
+            <div class="summary-grid">
+                <div class="summary-box green">
+                    <div class="title">&#9851; Registrera en gang</div>
+                    <ul>
+                        <li>&bull; Foretag & varumarke</li>
+                        <li>&bull; Fabriker</li>
+                        <li>&bull; Tyger + certifikat + ursprung</li>
+                        <li>&bull; Produkter + skotsel + compliance</li>
+                        <li>&bull; Varianter (SKU)</li>
+                    </ul>
+                </div>
+                <div class="summary-box orange">
+                    <div class="title">&#128310; Per produktionsorder</div>
+                    <ul>
+                        <li>&bull; Batch (nummer, PO, datum)</li>
+                        <li>&bull; Koppling batch &rarr; tyg</li>
+                        <li>&bull; Koppling batch &rarr; fabrik</li>
+                        <li id="fas2-serial" style="display: none; font-weight: bold;">&bull; Serienummer (per plagg)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-box">
+                <div style="font-weight: bold; margin-bottom: 8px;">Sammanfattning</div>
+                <div class="stats-grid">
+                    <div class="stat"><div class="value">97</div><div class="label">T4V-falt</div></div>
+                    <div class="stat"><div class="value">10</div><div class="label">Info Groups</div></div>
+                    <div class="stat"><div class="value">17</div><div class="label">Tabeller</div></div>
+                    <div class="stat"><div class="value">2</div><div class="label">DPP-endpoints</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR & RFID TAB -->
+        <div id="qr-rfid" class="tab-content">
+            <!-- Intro -->
+            <div class="info-box">
+                <p style="margin: 0; color: #475569;">
+                    QR-koder och RFID-taggar ar <strong>databarare</strong> som innehaller en identifierare.
+                    EU:s resolver-system oversatter identifieraren till en URL som leder till DPP:n.
+                </p>
+            </div>
+
+            <!-- Comparison -->
+            <div class="comparison-grid">
+                <!-- QR -->
+                <div class="compare-card qr">
+                    <div class="compare-header">
+                        <div class="icon">&#128241;</div>
+                        <div class="title">QR-kod (Fas 1)</div>
+                        <div class="subtitle">Modellniva</div>
+                    </div>
+                    <div class="compare-content">
+                        <div class="compare-item">
+                            <div class="label">INNEHALLER</div>
+                            <div class="mono">GTIN (produktens ID)</div>
+                            <div class="hint">Ex: 7350012345001</div>
+                        </div>
+                        <div class="compare-item">
+                            <div class="label">GENERERAS FRAN</div>
+                            <code>products.gtin</code>
+                        </div>
+                        <div class="compare-item">
+                            <div class="label">DPP-URL</div>
+                            <div class="mono" style="font-size: 11px; word-break: break-all;">/dpp/product/7350012345001</div>
+                        </div>
+                        <div class="compare-item">
+                            <div class="label">TYP & PLACERING</div>
+                            <code>product_data_carriers</code>
+                            <div class="hint">carrier_type = 'QR'</div>
+                            <div class="hint">carrier_location = 'care_label'</div>
+                        </div>
+                        <div class="tip-box">
+                            &#10003; Samma QR for alla plagg av samma produkt<br>
+                            &#10003; Genereras vid produktregistrering<br>
+                            &#10003; Trycks pa etikett/hangtag
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RFID -->
+                <div class="compare-card rfid">
+                    <div class="compare-header">
+                        <div class="icon">&#128225;</div>
+                        <div class="title">RFID-tagg (Fas 2)</div>
+                        <div class="subtitle">Artikelniva</div>
+                    </div>
+                    <div class="compare-content">
+                        <div class="compare-item">
+                            <div class="label">INNEHALLER</div>
+                            <div class="mono">Serienummer (unikt per plagg)</div>
+                            <div class="hint">Ex: VT-2025-VGR-001-00001</div>
+                        </div>
+                        <div class="compare-item">
+                            <div class="label">GENERERAS I</div>
+                            <code>items.serial_number</code>
+                            <div class="hint">+ items.rfid_tag_id (EPC/TID)</div>
+                        </div>
+                        <div class="compare-item">
+                            <div class="label">DPP-URL</div>
+                            <div class="mono" style="font-size: 11px; word-break: break-all;">/dpp/item/VT-2025-VGR-001-00001</div>
+                        </div>
+                        <div class="compare-item">
+                            <div class="label">TYP & PLACERING</div>
+                            <code>product_data_carriers</code>
+                            <div class="hint">carrier_type = 'RFID'</div>
+                            <div class="hint">carrier_location = 'hem'</div>
+                        </div>
+                        <div class="tip-box">
+                            &#10003; Unikt serienummer per plagg<br>
+                            &#10003; Genereras vid batchproduktion<br>
+                            &#10003; RFID-chip sys in i plagget
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flow diagram -->
+            <div class="flow-horizontal">
+                <div class="title">&#128260; Flode: Identifierare &rarr; DPP</div>
+
+                <div class="flow-row">
+                    <span class="flow-badge qr">QR</span>
+                    <span class="flow-code">products.gtin</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-step-sm">QR-generator</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-step-sm">Etikett/Hangtag</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-step-sm">Konsument skannar</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-result">/dpp/product/{GTIN}</span>
+                </div>
+
+                <div class="flow-row">
+                    <span class="flow-badge rfid">RFID</span>
+                    <span class="flow-code rfid">items.serial_number</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-step-sm">RFID-kodning</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-step-sm">Insydd tagg</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-step-sm">Lasare/mobil</span>
+                    <span class="flow-arrow">&rarr;</span>
+                    <span class="flow-result">/dpp/item/{serial}</span>
+                </div>
+            </div>
+
+            <!-- Database tables -->
+            <div class="db-table-box">
+                <div style="font-weight: bold; color: #334155; margin-bottom: 12px;">&#128451; Databastabeller</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tabell</th>
+                            <th>Roll</th>
+                            <th style="text-align: center;">QR</th>
+                            <th style="text-align: center;">RFID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="mono">products</td>
+                            <td>Lagrar GTIN</td>
+                            <td class="check">&#10003;</td>
+                            <td class="check">&#10003;</td>
+                        </tr>
+                        <tr>
+                            <td class="mono">product_data_carriers</td>
+                            <td>Typ & placering av databarare</td>
+                            <td class="check">&#10003;</td>
+                            <td class="check">&#10003;</td>
+                        </tr>
+                        <tr>
+                            <td class="mono">batches</td>
+                            <td>Produktionsorder</td>
+                            <td class="check">&#10003;</td>
+                            <td class="check">&#10003;</td>
+                        </tr>
+                        <tr class="highlight">
+                            <td class="mono" style="font-weight: bold;">items</td>
+                            <td>Serienummer + RFID-tag ID</td>
+                            <td class="dash">&mdash;</td>
+                            <td class="check" style="font-weight: bold;">&#10003;</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Insight -->
+            <div class="insight-box">
+                <div class="title">&#128161; Nyckelinsikt</div>
+                <p>
+                    <code>product_data_carriers</code> definierar <em>hur</em> databararen ser ut (QR/RFID, papper/textil, var pa plagget).
+                    <br>Den faktiska <em>identifieraren</em> kommer fran <code>products.gtin</code> (QR) eller <code>items.serial_number</code> (RFID).
+                </p>
+            </div>
+        </div>
+
+        <!-- TABLES TAB -->
+        <div id="tables" class="tab-content">
+            <!-- Fas toggle for tables -->
+            <div class="fas-toggle" style="margin-bottom: 16px;">
+                <button class="fas-btn active" data-fas="fas1" data-for="tables">Fas 1</button>
+                <button class="fas-btn" data-fas="fas2" data-for="tables">Fas 2</button>
+            </div>
+
+            <!-- Master Data -->
+            <div class="table-group green" data-group="master">
+                <div class="table-group-header">
+                    <span class="title">&#128274; Master Data</span>
+                    <span>+</span>
+                </div>
+                <div class="table-group-content">
+                    <div class="table-item">
+                        <div class="name">companies</div>
+                        <div class="desc">Foretag</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col">name</span>
+                            <span class="col">org_number</span>
+                            <span class="col">address</span>
+                            <span class="col">country</span>
+                            <span class="col">created_at</span>
+                            <span class="col">updated_at</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">brands</div>
+                        <div class="desc">Varumarken (T4V 100)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">company_id FK</span>
+                            <span class="col">name</span>
+                            <span class="col">logo_url</span>
+                            <span class="col">sub_brand</span>
+                            <span class="col">parent_company</span>
+                            <span class="col">trader_name</span>
+                            <span class="col">trader_location</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">suppliers</div>
+                        <div class="desc">Fabriker (T4V 200)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">company_id FK</span>
+                            <span class="col">name</span>
+                            <span class="col">location</span>
+                            <span class="col">country</span>
+                            <span class="col">facility_registry</span>
+                            <span class="col">facility_identifier</span>
+                            <span class="col">operator_registry</span>
+                            <span class="col">operator_identifier</span>
+                            <span class="col">active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tyglager -->
+            <div class="table-group blue" data-group="materials">
+                <div class="table-group-header">
+                    <span class="title">&#129525; Fabrikens Tyglager</span>
+                    <span>+</span>
+                </div>
+                <div class="table-group-content">
+                    <div class="table-item">
+                        <div class="name">factory_materials</div>
+                        <div class="desc">Material-katalog (T4V 350)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">supplier_id FK</span>
+                            <span class="col">name</span>
+                            <span class="col">material_type</span>
+                            <span class="col">weight_gsm</span>
+                            <span class="col">trim_type</span>
+                            <span class="col">dye_class</span>
+                            <span class="col">dye_standard</span>
+                            <span class="col">ink_type</span>
+                            <span class="col">finishes</span>
+                            <span class="col">pattern</span>
+                            <span class="col">thread_content</span>
+                            <span class="col">leather_*</span>
+                            <span class="col">active</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">factory_material_compositions</div>
+                        <div class="desc">Fiberinnehall</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">factory_material_id FK</span>
+                            <span class="col">fiber_type</span>
+                            <span class="col">percentage</span>
+                            <span class="col">fiber_source</span>
+                            <span class="col">trade_mark</span>
+                            <span class="col">fiber_type_other</span>
+                            <span class="col">is_recycled</span>
+                            <span class="col">recycled_percentage</span>
+                            <span class="col">recycled_source</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">factory_material_certifications</div>
+                        <div class="desc">Materialcertifikat</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">factory_material_id FK</span>
+                            <span class="col">certification_type</span>
+                            <span class="col">certification_class</span>
+                            <span class="col">certificate_number</span>
+                            <span class="col">certificate_url</span>
+                            <span class="col">valid_until</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">factory_material_origins</div>
+                        <div class="desc">Ursprungslander</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">factory_material_id FK</span>
+                            <span class="col">process_step</span>
+                            <span class="col">country_code</span>
+                            <span class="col">supplier_name</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Produkter -->
+            <div class="table-group purple" data-group="products">
+                <div class="table-group-header">
+                    <span class="title">&#128085; Produkter</span>
+                    <span>+</span>
+                </div>
+                <div class="table-group-content">
+                    <div class="table-item">
+                        <div class="name">products</div>
+                        <div class="desc">Produktstamdata (T4V 300)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">brand_id FK</span>
+                            <span class="col">gtin</span>
+                            <span class="col">name</span>
+                            <span class="col">description</span>
+                            <span class="col">photo_url</span>
+                            <span class="col">article_number</span>
+                            <span class="col">category</span>
+                            <span class="col">product_group</span>
+                            <span class="col">line_concept</span>
+                            <span class="col">item_type</span>
+                            <span class="col">gender</span>
+                            <span class="col">age_group</span>
+                            <span class="col">market_segment</span>
+                            <span class="col">hs_code</span>
+                            <span class="col">hs_code_system</span>
+                            <span class="col">sale_year</span>
+                            <span class="col">sale_season</span>
+                            <span class="col">msrp</span>
+                            <span class="col">resale_price</span>
+                            <span class="col">currency</span>
+                            <span class="col">water_properties</span>
+                            <span class="col">net_weight_kg</span>
+                            <span class="col">active</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_variants</div>
+                        <div class="desc">SKU per storlek+farg</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">sku</span>
+                            <span class="col">item_number</span>
+                            <span class="col">size</span>
+                            <span class="col">size_system</span>
+                            <span class="col">color_brand</span>
+                            <span class="col">color_standard</span>
+                            <span class="col">active</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_data_carriers</div>
+                        <div class="desc">QR/RFID-info (T4V 370)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">carrier_type</span>
+                            <span class="col">carrier_material</span>
+                            <span class="col">carrier_location</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_care_instructions</div>
+                        <div class="desc">Skotselrad (T4V 400)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">care_symbols_url</span>
+                            <span class="col">care_text</span>
+                            <span class="col">safety_information</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_compliance</div>
+                        <div class="desc">Compliance (T4V 500)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">has_harmful_substances</span>
+                            <span class="col">harmful_substances_info</span>
+                            <span class="col">has_microfibers</span>
+                            <span class="col">chemical_standard</span>
+                            <span class="col">chemical_validation_url</span>
+                            <span class="col">scan4chem_url</span>
+                            <span class="col">traceability_provider</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_certifications</div>
+                        <div class="desc">Produktcertifikat</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">certification_type</span>
+                            <span class="col">certificate_number</span>
+                            <span class="col">certificate_url</span>
+                            <span class="col">valid_until</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_circularity</div>
+                        <div class="desc">Cirkularitet (T4V 600)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">performance_info</span>
+                            <span class="col">recyclability_info</span>
+                            <span class="col">take_back_instructions</span>
+                            <span class="col">recycling_instructions</span>
+                            <span class="col">disassembly_sorters</span>
+                            <span class="col">disassembly_user</span>
+                            <span class="col">circular_strategy</span>
+                            <span class="col">circular_strategy_desc</span>
+                            <span class="col">repair_instructions</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">product_sustainability</div>
+                        <div class="desc">Hallbarhet (T4V 650)</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">brand_statement</span>
+                            <span class="col">statement_url</span>
+                            <span class="col">environmental_footprint</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Produktion -->
+            <div class="table-group orange" data-group="batches">
+                <div class="table-group-header">
+                    <span class="title">&#128230; Produktion</span>
+                    <span>+</span>
+                </div>
+                <div class="table-group-content">
+                    <div class="table-item">
+                        <div class="name">batches</div>
+                        <div class="desc">Produktionsbatch</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">brand_id FK</span>
+                            <span class="col">batch_number</span>
+                            <span class="col">po_number</span>
+                            <span class="col">production_date</span>
+                            <span class="col">quantity</span>
+                            <span class="col">status</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">batch_variants</div>
+                        <div class="desc">SKU:er i batch</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">batch_id FK</span>
+                            <span class="col fk">product_variant_id FK</span>
+                            <span class="col">quantity</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">batch_materials</div>
+                        <div class="desc">&rarr; Valj tyg fran lager</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">batch_id FK</span>
+                            <span class="col fk">factory_material_id FK</span>
+                            <span class="col">component_type</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">batch_suppliers</div>
+                        <div class="desc">&rarr; Valj fabrik</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">batch_id FK</span>
+                            <span class="col fk">supplier_id FK</span>
+                            <span class="col">process_step</span>
+                            <span class="col">country_code</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artiklar (Fas 2) -->
+            <div class="table-group red" data-group="items" id="items-group">
+                <div class="table-group-header">
+                    <span class="title">&#127991; Artiklar (Fas 2)</span>
+                    <span>+</span>
+                </div>
+                <div class="table-group-content">
+                    <div class="table-item">
+                        <div class="name">items</div>
+                        <div class="desc">Individuella plagg</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">batch_id FK</span>
+                            <span class="col fk">product_variant_id FK</span>
+                            <span class="col">serial_number</span>
+                            <span class="col">rfid_tag_id</span>
+                            <span class="col">created_at</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAPPING TAB -->
+        <div id="mapping" class="tab-content">
+            <!-- 100 series -->
+            <div class="mapping-group" data-series="100">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">100-serien: Brand Information</span>
+                        <span class="count">(6 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; brands</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">100,00</td><td>Brand</td><td class="col">name</td></tr>
+                            <tr><td class="nr">101,00</td><td>Logo</td><td class="col">logo_url</td></tr>
+                            <tr><td class="nr">102,00</td><td>Sub Brand</td><td class="col">sub_brand</td></tr>
+                            <tr><td class="nr">103,00</td><td>Parent Company</td><td class="col">parent_company</td></tr>
+                            <tr><td class="nr">104,00</td><td>Trader</td><td class="col">trader_name</td></tr>
+                            <tr><td class="nr">105,00</td><td>Trader Location</td><td class="col">trader_location</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 200 series -->
+            <div class="mapping-group" data-series="200">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">200-serien: Supply Chain</span>
+                        <span class="count">(9 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; suppliers + factory_material_origins</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">200,00</td><td>Supplier Name</td><td class="col">suppliers.name</td></tr>
+                            <tr><td class="nr">201,00</td><td>Supplier Location</td><td class="col">suppliers.location</td></tr>
+                            <tr><td class="nr">202,00</td><td>Facility Registry</td><td class="col">suppliers.facility_registry</td></tr>
+                            <tr><td class="nr">202,10</td><td>Facility Identifier</td><td class="col">suppliers.facility_identifier</td></tr>
+                            <tr><td class="nr">203,00</td><td>Operator Registry</td><td class="col">suppliers.operator_registry</td></tr>
+                            <tr><td class="nr">203,10</td><td>Operator Identifier</td><td class="col">suppliers.operator_identifier</td></tr>
+                            <tr><td class="nr">204,00</td><td>Country - Confection</td><td class="col">batch_suppliers.country_code</td></tr>
+                            <tr><td class="nr">205,00</td><td>Country - Dyeing</td><td class="col">factory_material_origins</td></tr>
+                            <tr><td class="nr">206,00</td><td>Country - Weaving</td><td class="col">factory_material_origins</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 300 series -->
+            <div class="mapping-group" data-series="300">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">300-serien: Product Information</span>
+                        <span class="count">(31 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; products + product_variants</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">300,10</td><td>Product ID (GTIN)</td><td class="col">products.gtin</td></tr>
+                            <tr><td class="nr">300,20</td><td>Unique Product ID</td><td class="col">items.serial_number &#9888; Fas 2</td></tr>
+                            <tr><td class="nr">301,00</td><td>Product Name</td><td class="col">products.name</td></tr>
+                            <tr><td class="nr">302,00</td><td>Description</td><td class="col">products.description</td></tr>
+                            <tr><td class="nr">304,00</td><td>Article Number</td><td class="col">products.article_number</td></tr>
+                            <tr><td class="nr">304,10</td><td>Item Number</td><td class="col">product_variants.item_number</td></tr>
+                            <tr><td class="nr">305,00</td><td>PO Number</td><td class="col">batches.po_number</td></tr>
+                            <tr><td class="nr">309,00</td><td>Size</td><td class="col">product_variants.size</td></tr>
+                            <tr><td class="nr">310,00</td><td>Color (Brand)</td><td class="col">product_variants.color_brand</td></tr>
+                            <tr><td class="nr">...</td><td>(+21 falt)</td><td class="col">Se fullstandig mappning</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 350 series -->
+            <div class="mapping-group" data-series="350">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">350-serien: Material Information</span>
+                        <span class="count">(26 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; factory_materials + compositions</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">350,00</td><td>Component</td><td class="col">batch_materials.component_type</td></tr>
+                            <tr><td class="nr">350,10</td><td>Material</td><td class="col">factory_materials.material_type</td></tr>
+                            <tr><td class="nr">350,20</td><td>Content Name</td><td class="col">compositions.fiber_type</td></tr>
+                            <tr><td class="nr">350,21</td><td>Content Value</td><td class="col">compositions.percentage</td></tr>
+                            <tr><td class="nr">350,22</td><td>Content Source</td><td class="col">compositions.fiber_source</td></tr>
+                            <tr><td class="nr">351,00</td><td>Recycled</td><td class="col">compositions.is_recycled</td></tr>
+                            <tr><td class="nr">355,00</td><td>Dye Class</td><td class="col">factory_materials.dye_class</td></tr>
+                            <tr><td class="nr">...</td><td>(+19 falt)</td><td class="col">Inkl. lader, trim, finish</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 370 series -->
+            <div class="mapping-group" data-series="370">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">370-serien: Digital Identifier</span>
+                        <span class="count">(3 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; product_data_carriers</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">370,00</td><td>Carrier Type</td><td class="col">carrier_type</td></tr>
+                            <tr><td class="nr">370,10</td><td>Carrier Material</td><td class="col">carrier_material</td></tr>
+                            <tr><td class="nr">370,20</td><td>Carrier Location</td><td class="col">carrier_location</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 400 series -->
+            <div class="mapping-group" data-series="400">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">400-serien: Care Information</span>
+                        <span class="count">(3 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; product_care_instructions</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">400,00</td><td>Care Image</td><td class="col">care_symbols_url</td></tr>
+                            <tr><td class="nr">401,00</td><td>Care Text</td><td class="col">care_text</td></tr>
+                            <tr><td class="nr">402,00</td><td>Safety Information</td><td class="col">safety_information</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 500 series -->
+            <div class="mapping-group" data-series="500">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">500-serien: Compliance</span>
+                        <span class="count">(10 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; product_compliance + certifications</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">500,00</td><td>Harmful Substances</td><td class="col">has_harmful_substances</td></tr>
+                            <tr><td class="nr">501,00</td><td>Certifications</td><td class="col">*_certifications.certification_type</td></tr>
+                            <tr><td class="nr">502,00</td><td>Chemical Standard</td><td class="col">chemical_standard</td></tr>
+                            <tr><td class="nr">503,00</td><td>Microfibers</td><td class="col">has_microfibers</td></tr>
+                            <tr><td class="nr">504,00</td><td>Traceability Provider</td><td class="col">traceability_provider</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 600 series -->
+            <div class="mapping-group" data-series="600">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">600-serien: Circularity</span>
+                        <span class="count">(9 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; product_circularity</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">601,00</td><td>Recyclability</td><td class="col">recyclability_info</td></tr>
+                            <tr><td class="nr">602,00</td><td>Take Back</td><td class="col">take_back_instructions</td></tr>
+                            <tr><td class="nr">606,00</td><td>Circular Strategy</td><td class="col">circular_strategy</td></tr>
+                            <tr><td class="nr">607,00</td><td>Repair Instructions</td><td class="col">repair_instructions</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 650 series -->
+            <div class="mapping-group" data-series="650">
+                <div class="mapping-header">
+                    <div class="info">
+                        <span class="title">650-serien: Sustainability</span>
+                        <span class="count">(3 falt)</span>
+                    </div>
+                    <span class="table-badge">&rarr; product_sustainability</span>
+                </div>
+                <div class="mapping-content">
+                    <table>
+                        <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
+                        <tbody>
+                            <tr><td class="nr">650,00</td><td>Brand Statement</td><td class="col">brand_statement</td></tr>
+                            <tr><td class="nr">650,10</td><td>Statement Link</td><td class="col">statement_url</td></tr>
+                            <tr><td class="nr">651,00</td><td>Environmental Footprint</td><td class="col">environmental_footprint &#9888; TBC</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Warning -->
+            <div class="warning-box">
+                <div class="title">&#9888; TBC-falt (vantar pa EU)</div>
+                <ul>
+                    <li>&bull; 600,00 Performance</li>
+                    <li>&bull; 501,10 Certifications Validation</li>
+                    <li>&bull; 502,10 Chemical Compliance Validation</li>
+                    <li>&bull; 651,00 Environmental Footprint</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabId = this.dataset.tab;
+
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+
+                // Show correct content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        // Fas toggle (overview)
+        let currentFas = 'fas1';
+
+        document.querySelectorAll('.fas-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const fas = this.dataset.fas;
+                const forTab = this.dataset.for;
+
+                // Update active button in same group
+                const parent = this.parentElement;
+                parent.querySelectorAll('.fas-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                currentFas = fas;
+                updateFasDisplay();
+            });
+        });
+
+        function updateFasDisplay() {
+            // Update overview info
+            const title = document.getElementById('fas-title');
+            const desc = document.getElementById('fas-desc');
+            const endpoint = document.getElementById('fas-endpoint');
+            const flowItems = document.getElementById('flow-items');
+            const fas2Serial = document.getElementById('fas2-serial');
+            const itemsGroup = document.getElementById('items-group');
+
+            if (currentFas === 'fas1') {
+                title.textContent = 'Fas 1 - QR / Modellniva';
+                desc.textContent = 'DPP per produkttyp. Samma QR for alla plagg av samma modell.';
+                endpoint.textContent = '/dpp/product/{GTIN}';
+                flowItems.classList.add('inactive');
+                flowItems.querySelector('.arrow').textContent = '\u2014';
+                fas2Serial.style.display = 'none';
+                if (itemsGroup) {
+                    itemsGroup.classList.add('inactive');
+                }
+            } else {
+                title.textContent = 'Fas 2 - RFID / Artikelniva';
+                desc.textContent = 'DPP per plagg. Varje fysiskt plagg har unikt serienummer.';
+                endpoint.textContent = '/dpp/item/{serial_number}';
+                flowItems.classList.remove('inactive');
+                flowItems.querySelector('.arrow').textContent = '\u2192';
+                fas2Serial.style.display = 'list-item';
+                if (itemsGroup) {
+                    itemsGroup.classList.remove('inactive');
+                }
+            }
+        }
+
+        // Table group toggle
+        document.querySelectorAll('.table-group-header').forEach(header => {
+            header.addEventListener('click', function() {
+                const group = this.parentElement;
+                if (group.classList.contains('inactive')) return;
+
+                const isExpanded = group.classList.contains('expanded');
+
+                // Close all groups
+                document.querySelectorAll('.table-group').forEach(g => g.classList.remove('expanded'));
+
+                // Toggle clicked group
+                if (!isExpanded) {
+                    group.classList.add('expanded');
+                    this.querySelector('span:last-child').textContent = '\u2212';
+                }
+
+                // Update all toggle symbols
+                document.querySelectorAll('.table-group').forEach(g => {
+                    const symbol = g.querySelector('.table-group-header span:last-child');
+                    symbol.textContent = g.classList.contains('expanded') ? '\u2212' : '+';
+                });
+            });
+        });
+
+        // Mapping group toggle
+        document.querySelectorAll('.mapping-header').forEach(header => {
+            header.addEventListener('click', function() {
+                const group = this.parentElement;
+                group.classList.toggle('expanded');
+            });
+        });
+
+        // Initialize
+        updateFasDisplay();
+    </script>
+</body>
+</html>
