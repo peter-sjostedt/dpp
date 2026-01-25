@@ -43,7 +43,7 @@
                         { table: 'factory_materials', desc: 'Tygtyp', example: 'PolyCotton 65/35 155gsm' },
                         { table: '↳ compositions', desc: 'Fiberinnehåll', example: '65% Polyester, 35% Bomull' },
                         { table: '↳ certifications', desc: 'Certifikat', example: 'Oeko-Tex Class I' },
-                        { table: '↳ origins', desc: 'Leverantörskedja', example: 'Indien → Portugal' },
+                        { table: '↳ supply_chain', desc: 'Leverantörskedja', example: 'Indien → Portugal' },
                     ]
                 },
                 {
@@ -57,12 +57,12 @@
                     items: [
                         { table: 'products', desc: 'Produktinfo', example: 'Scrubs Tunika' },
                         { table: '↳ products.gtin', desc: '📱 QR-kodens källa', example: '7350012345001', highlight: 'qr' },
-                        { table: '↳ data_carriers', desc: 'Databärartyp & placering', example: 'QR, care_label, neck' },
-                        { table: '↳ care_instructions', desc: 'Skötselråd', example: 'Industritvätt 85°C' },
-                        { table: '↳ compliance', desc: 'SVHC, mikrofiber', example: 'Nej / Ja' },
+                        { table: '↳ products.data_carrier_*', desc: 'Databärartyp & placering', example: 'QR, care_label, neck' },
+                        { table: '↳ care_information', desc: 'Skötselråd', example: 'Industritvätt 85°C' },
+                        { table: '↳ compliance_information', desc: 'SVHC, mikrofiber', example: 'Nej / Ja' },
                         { table: '↳ certifications', desc: 'Produktcertifikat', example: 'Oeko-Tex' },
-                        { table: '↳ circularity', desc: 'Återvinning', example: 'Returnera till tvätten' },
-                        { table: '↳ sustainability', desc: 'Hållbarhetstext', example: 'CO2-avtryck' },
+                        { table: '↳ circularity_information', desc: 'Återvinning', example: 'Returnera till tvätten' },
+                        { table: '↳ sustainability_information', desc: 'Hållbarhetstext', example: 'CO2-avtryck' },
                     ]
                 },
                 {
@@ -102,8 +102,8 @@
                     fas1: false,
                     fas2: true,
                     items: [
-                        { table: 'items', desc: '📡 RFID-serienummer', example: 'VT-2025-VGR-001-00001', highlight: 'rfid' },
-                        { table: '↳ rfid_tag_id', desc: 'Fysiskt tagg-ID (EPC)', example: '3034257BF400...' },
+                        { table: 'items.sgtin', desc: '📡 RFID-serienummer', example: '7350012345001.00001', highlight: 'rfid' },
+                        { table: '↳ items.tid', desc: 'Fysiskt tagg-ID (EPC)', example: '3034257BF400...' },
                     ]
                 },
             ];
@@ -121,9 +121,9 @@
                 fas2: {
                     title: 'Fas 2 - RFID / Artikelnivå',
                     description: 'DPP per plagg. Varje fysiskt plagg har unikt serienummer.',
-                    identifier: 'Serienummer från items.serial_number',
-                    dppUrl: '/dpp/item/{serial_number}',
-                    example: '/dpp/item/VT-2025-VGR-001-00001',
+                    identifier: 'SGTIN från items.sgtin',
+                    dppUrl: '/dpp/item/{sgtin}',
+                    example: '/dpp/item/7350012345001.00001',
                     timeline: '2028-2029',
                     icon: '📡'
                 }
@@ -261,13 +261,13 @@
                                 <>
                                     <span className="bg-orange-500 text-white px-2 py-1 rounded">batch skapas</span>
                                     <span className="text-gray-400">→</span>
-                                    <span className="bg-red-500 text-white px-2 py-1 rounded">items.serial_number</span>
+                                    <span className="bg-red-500 text-white px-2 py-1 rounded">items.sgtin</span>
                                     <span className="text-gray-400">→</span>
                                     <span className="bg-gray-300 px-2 py-1 rounded">RFID-kodning</span>
                                     <span className="text-gray-400">→</span>
                                     <span className="bg-gray-300 px-2 py-1 rounded">📡 Läs</span>
                                     <span className="text-gray-400">→</span>
-                                    <span className="bg-green-500 text-white px-2 py-1 rounded">/dpp/item/{'{serial}'}</span>
+                                    <span className="bg-green-500 text-white px-2 py-1 rounded">/dpp/item/{'{sgtin}'}</span>
                                 </>
                             )}
                         </div>
@@ -319,7 +319,7 @@
                                 <tr className="border-t border-amber-200">
                                     <td className="py-2 font-medium">Identifierare</td>
                                     <td className="py-2 font-mono text-sm">products.gtin</td>
-                                    <td className="py-2 font-mono text-sm">items.serial_number</td>
+                                    <td className="py-2 font-mono text-sm">items.sgtin</td>
                                 </tr>
                                 <tr className="border-t border-amber-200">
                                     <td className="py-2 font-medium">Databärare</td>
@@ -334,7 +334,7 @@
                                 <tr className="border-t border-amber-200">
                                     <td className="py-2 font-medium">items-tabell</td>
                                     <td className="py-2 text-gray-400">❌ Används ej</td>
-                                    <td className="py-2 text-green-700">✅ Serienummer + rfid_tag_id</td>
+                                    <td className="py-2 text-green-700">✅ sgtin + tid</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -351,7 +351,7 @@
                         ) : (
                             <p className="text-sm text-blue-700">
                                 I Fas 2 genereras serienummer i <code className="bg-white px-1 rounded">items</code>-tabellen vid batchproduktion.
-                                Varje RFID-tagg innehåller ett unikt <code className="bg-white px-1 rounded">serial_number</code> som pekar på en individuell DPP.
+                                Varje RFID-tagg innehåller ett unikt <code className="bg-white px-1 rounded">sgtin</code> som pekar på en individuell DPP.
                             </p>
                         )}
                     </div>
