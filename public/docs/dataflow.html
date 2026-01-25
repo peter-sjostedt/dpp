@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPP Dataflöde</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .category-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .category-content.open {
+            max-height: 500px;
+        }
+        .category-header {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .category-header:hover {
+            filter: brightness(0.95);
+        }
+        .chevron {
+            transition: transform 0.3s ease;
+        }
+        .chevron.open {
+            transform: rotate(90deg);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Rubrik -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">DPP Dataflöde</h1>
+            <p class="text-gray-600">Förstå vad du registrerar en gång vs vad som skapas per order</p>
+        </div>
+
+        <!-- Kategorier -->
+        <div class="space-y-3 mb-8" id="categories">
+            <!-- Genereras med JavaScript -->
+        </div>
+
+        <!-- Flödesexempel -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Typiskt flöde</h2>
+            <div class="space-y-3" id="flow-steps">
+                <!-- Genereras med JavaScript -->
+            </div>
+        </div>
+
+        <!-- Sammanfattning -->
+        <div class="grid md:grid-cols-2 gap-4 mb-8">
+            <div class="bg-green-50 border-2 border-green-500 rounded-lg p-5">
+                <h3 class="font-bold text-green-800 text-lg mb-3">♻️ Registrera en gång</h3>
+                <ul class="space-y-2 text-green-700">
+                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Företag & varumärke</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Fabriker</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Tyger + certifikat</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Produkter + skötselråd</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Varianter (SKU)</li>
+                </ul>
+            </div>
+            <div class="bg-orange-50 border-2 border-orange-500 rounded-lg p-5">
+                <h3 class="font-bold text-orange-800 text-lg mb-3">🆕 Skapas varje gång</h3>
+                <ul class="space-y-2 text-orange-700">
+                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Batch (per order)</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Koppling batch → tyg</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Koppling batch → fabrik</li>
+                    <li class="flex items-center"><span class="w-2 h-2 bg-orange-500 rounded-full mr-2"></span>Serienummer (per plagg)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Nyckelinsikt -->
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-5 rounded-r-lg">
+            <div class="flex items-start">
+                <span class="text-2xl mr-3">💡</span>
+                <p class="text-blue-800">
+                    Vid en typisk order behöver du bara skapa <strong>batch</strong> och <strong>serienummer</strong>.
+                    Allt annat (fabrik, tyg, certifikat, produkt, skötselråd) väljer du från det som redan finns registrerat.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const categories = [
+            {
+                id: 'once',
+                title: '🔒 Registrera en gång',
+                subtitle: 'Master data - återanvänds överallt',
+                color: 'green',
+                items: [
+                    { table: 'companies', desc: 'Ditt företag', example: 'VårdTex AB' },
+                    { table: 'brands', desc: 'Dina varumärken', example: 'VårdTex Pro' },
+                    { table: 'suppliers', desc: 'Dina fabriker', example: 'Têxtil Hospitalar Porto' },
+                ]
+            },
+            {
+                id: 'material',
+                title: '🧵 Registrera per tyg',
+                subtitle: 'Fabrikens tyglager - välj vid produktion',
+                color: 'blue',
+                items: [
+                    { table: 'factory_materials', desc: 'Tygtyp', example: 'PolyCotton 65/35 155gsm' },
+                    { table: '↳ compositions', desc: 'Fiberinnehåll', example: '65% Polyester, 35% Bomull' },
+                    { table: '↳ certifications', desc: 'Certifikat', example: 'Oeko-Tex Class I' },
+                    { table: '↳ supply_chain', desc: 'Leverantörskedja', example: 'Indien → Portugal' },
+                ]
+            },
+            {
+                id: 'product',
+                title: '👕 Registrera per produkt',
+                subtitle: 'Produktstamdata - gäller alla storlekar/färger',
+                color: 'purple',
+                items: [
+                    { table: 'products', desc: 'Produktinfo', example: 'Scrubs Tunika, GTIN, pris' },
+                    { table: '↳ care_information', desc: 'Skötselråd', example: 'Industritvätt 85°C' },
+                    { table: '↳ compliance_information', desc: 'SVHC, mikrofiber', example: 'Nej / Ja' },
+                    { table: '↳ certifications', desc: 'Produktcertifikat', example: 'Oeko-Tex' },
+                    { table: '↳ circularity', desc: 'Återvinning', example: 'Returnera till tvätten' },
+                    { table: '↳ sustainability', desc: 'Hållbarhetstext', example: 'CO2-avtryck, tvättcykler' },
+                ]
+            },
+            {
+                id: 'variant',
+                title: '📏 Registrera per variant',
+                subtitle: 'Storlek + Färg kombination',
+                color: 'yellow',
+                items: [
+                    { table: 'product_variants', desc: 'SKU', example: 'VT-SCR-TOP-001-CBL-M' },
+                    { table: '', desc: 'Storlek', example: 'M' },
+                    { table: '', desc: 'Färg', example: 'Ceil Blue' },
+                ]
+            },
+            {
+                id: 'batch',
+                title: '📦 Ny per produktionsorder',
+                subtitle: 'Skapas vid varje beställning',
+                color: 'orange',
+                items: [
+                    { table: 'batches', desc: 'Batchnummer, PO, datum, antal', example: 'BATCH-2025-VGR-001' },
+                    { table: '↳ batch_materials', desc: '→ Välj tyg från lager', example: '→ PolyCotton 65/35' },
+                    { table: '↳ batch_suppliers', desc: '→ Välj fabrik', example: '→ Porto' },
+                ]
+            },
+            {
+                id: 'item',
+                title: '🏷️ Unik per plagg',
+                subtitle: 'Varje fysisk artikel (QR/RFID)',
+                color: 'red',
+                items: [
+                    { table: 'items', desc: 'Serienummer', example: 'VT-2025-VGR-001-00001' },
+                    { table: '', desc: 'Carrier-typ', example: 'RFID / QR' },
+                    { table: '', desc: 'Placering', example: 'Sidficka' },
+                ]
+            },
+        ];
+
+        const flowExample = [
+            { step: 1, action: 'Registrera fabrik', reuse: '♻️ Återanvänds för alla ordrar' },
+            { step: 2, action: 'Registrera tyg + certifikat', reuse: '♻️ Återanvänds för alla produkter som använder tyget' },
+            { step: 3, action: 'Skapa produkt + skötselråd', reuse: '♻️ Återanvänds för alla varianter och batchar' },
+            { step: 4, action: 'Skapa varianter (S/M/L)', reuse: '♻️ Återanvänds för alla batchar av denna variant' },
+            { step: 5, action: 'Skapa batch + välj tyg', reuse: '🆕 Ny för varje order' },
+            { step: 6, action: 'Generera serienummer', reuse: '🆕 Unikt per plagg' },
+        ];
+
+        const colorClasses = {
+            green: { bg: 'bg-green-100', border: 'border-green-500', header: 'bg-green-500', text: 'text-green-800', headerText: 'text-white' },
+            blue: { bg: 'bg-blue-100', border: 'border-blue-500', header: 'bg-blue-500', text: 'text-blue-800', headerText: 'text-white' },
+            purple: { bg: 'bg-purple-100', border: 'border-purple-500', header: 'bg-purple-500', text: 'text-purple-800', headerText: 'text-white' },
+            yellow: { bg: 'bg-yellow-100', border: 'border-yellow-500', header: 'bg-yellow-500', text: 'text-yellow-800', headerText: 'text-gray-900' },
+            orange: { bg: 'bg-orange-100', border: 'border-orange-500', header: 'bg-orange-500', text: 'text-orange-800', headerText: 'text-white' },
+            red: { bg: 'bg-red-100', border: 'border-red-500', header: 'bg-red-500', text: 'text-red-800', headerText: 'text-white' },
+        };
+
+        function renderCategories() {
+            const container = document.getElementById('categories');
+            container.innerHTML = categories.map(cat => {
+                const colors = colorClasses[cat.color];
+                return `
+                    <div class="rounded-lg overflow-hidden shadow-md border-2 ${colors.border}">
+                        <div class="category-header ${colors.header} px-4 py-3 flex items-center justify-between" onclick="toggleCategory('${cat.id}')">
+                            <div>
+                                <h3 class="font-bold ${colors.headerText} text-lg">${cat.title}</h3>
+                                <p class="${colors.headerText} opacity-90 text-sm">${cat.subtitle}</p>
+                            </div>
+                            <span class="chevron ${colors.headerText} text-xl" id="chevron-${cat.id}">▶</span>
+                        </div>
+                        <div class="category-content ${colors.bg}" id="content-${cat.id}">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="${colors.text} text-left text-sm opacity-75">
+                                        <th class="px-4 py-2 font-medium">Tabell</th>
+                                        <th class="px-4 py-2 font-medium">Beskrivning</th>
+                                        <th class="px-4 py-2 font-medium">Exempel</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="${colors.text}">
+                                    ${cat.items.map(item => `
+                                        <tr class="border-t border-white/50">
+                                            <td class="px-4 py-2 font-mono text-sm">${item.table || '—'}</td>
+                                            <td class="px-4 py-2">${item.desc}</td>
+                                            <td class="px-4 py-2 text-sm opacity-75">${item.example}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderFlowSteps() {
+            const container = document.getElementById('flow-steps');
+            container.innerHTML = flowExample.map(step => {
+                const isNew = step.reuse.startsWith('🆕');
+                const bgColor = isNew ? 'bg-orange-50 border-orange-200' : 'bg-green-50 border-green-200';
+                return `
+                    <div class="flex items-center gap-4 ${bgColor} border rounded-lg p-3">
+                        <div class="w-8 h-8 rounded-full bg-gray-800 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                            ${step.step}
+                        </div>
+                        <div class="flex-1">
+                            <span class="font-medium text-gray-800">${step.action}</span>
+                        </div>
+                        <div class="text-sm ${isNew ? 'text-orange-600' : 'text-green-600'}">
+                            ${step.reuse}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        let openCategory = null;
+
+        function toggleCategory(id) {
+            const content = document.getElementById(`content-${id}`);
+            const chevron = document.getElementById(`chevron-${id}`);
+
+            // Close currently open category if different
+            if (openCategory && openCategory !== id) {
+                document.getElementById(`content-${openCategory}`).classList.remove('open');
+                document.getElementById(`chevron-${openCategory}`).classList.remove('open');
+            }
+
+            // Toggle clicked category
+            const isOpen = content.classList.contains('open');
+            if (isOpen) {
+                content.classList.remove('open');
+                chevron.classList.remove('open');
+                openCategory = null;
+            } else {
+                content.classList.add('open');
+                chevron.classList.add('open');
+                openCategory = id;
+            }
+        }
+
+        // Initialize
+        renderCategories();
+        renderFlowSteps();
+    </script>
+</body>
+</html>
