@@ -359,9 +359,9 @@
                         </div>
                         <div class="compare-item">
                             <div class="label">TYP & PLACERING</div>
-                            <code>product_data_carriers</code>
-                            <div class="hint">carrier_type = 'QR'</div>
-                            <div class="hint">carrier_location = 'care_label'</div>
+                            <code>products</code>
+                            <div class="hint">data_carrier_type = 'QR'</div>
+                            <div class="hint">data_carrier_location = 'care_label'</div>
                         </div>
                         <div class="tip-box">
                             &#10003; Samma QR for alla plagg av samma produkt<br>
@@ -381,23 +381,23 @@
                     <div class="compare-content">
                         <div class="compare-item">
                             <div class="label">INNEHALLER</div>
-                            <div class="mono">Serienummer (unikt per plagg)</div>
-                            <div class="hint">Ex: VT-2025-VGR-001-00001</div>
+                            <div class="mono">SGTIN (unikt per plagg)</div>
+                            <div class="hint">Ex: 7350012345001.000001</div>
                         </div>
                         <div class="compare-item">
                             <div class="label">GENERERAS I</div>
-                            <code>items.serial_number</code>
-                            <div class="hint">+ items.rfid_tag_id (EPC/TID)</div>
+                            <code>items.sgtin</code>
+                            <div class="hint">+ items.tid (RFID Tag ID)</div>
                         </div>
                         <div class="compare-item">
                             <div class="label">DPP-URL</div>
-                            <div class="mono" style="font-size: 11px; word-break: break-all;">/dpp/item/VT-2025-VGR-001-00001</div>
+                            <div class="mono" style="font-size: 11px; word-break: break-all;">/dpp/item/{sgtin}</div>
                         </div>
                         <div class="compare-item">
                             <div class="label">TYP & PLACERING</div>
-                            <code>product_data_carriers</code>
-                            <div class="hint">carrier_type = 'RFID'</div>
-                            <div class="hint">carrier_location = 'hem'</div>
+                            <code>products</code>
+                            <div class="hint">data_carrier_type = 'RFID'</div>
+                            <div class="hint">data_carrier_location = 'hem'</div>
                         </div>
                         <div class="tip-box">
                             &#10003; Unikt serienummer per plagg<br>
@@ -427,7 +427,7 @@
 
                 <div class="flow-row">
                     <span class="flow-badge rfid">RFID</span>
-                    <span class="flow-code rfid">items.serial_number</span>
+                    <span class="flow-code rfid">items.sgtin / items.tid</span>
                     <span class="flow-arrow">&rarr;</span>
                     <span class="flow-step-sm">RFID-kodning</span>
                     <span class="flow-arrow">&rarr;</span>
@@ -435,7 +435,7 @@
                     <span class="flow-arrow">&rarr;</span>
                     <span class="flow-step-sm">Lasare/mobil</span>
                     <span class="flow-arrow">&rarr;</span>
-                    <span class="flow-result">/dpp/item/{serial}</span>
+                    <span class="flow-result">/dpp/item/{sgtin}</span>
                 </div>
             </div>
 
@@ -454,13 +454,7 @@
                     <tbody>
                         <tr>
                             <td class="mono">products</td>
-                            <td>Lagrar GTIN</td>
-                            <td class="check">&#10003;</td>
-                            <td class="check">&#10003;</td>
-                        </tr>
-                        <tr>
-                            <td class="mono">product_data_carriers</td>
-                            <td>Typ & placering av databarare</td>
+                            <td>Lagrar GTIN + data carrier info</td>
                             <td class="check">&#10003;</td>
                             <td class="check">&#10003;</td>
                         </tr>
@@ -472,7 +466,7 @@
                         </tr>
                         <tr class="highlight">
                             <td class="mono" style="font-weight: bold;">items</td>
-                            <td>Serienummer + RFID-tag ID</td>
+                            <td>SGTIN + TID (RFID-tag)</td>
                             <td class="dash">&mdash;</td>
                             <td class="check" style="font-weight: bold;">&#10003;</td>
                         </tr>
@@ -484,8 +478,8 @@
             <div class="insight-box">
                 <div class="title">&#128161; Nyckelinsikt</div>
                 <p>
-                    <code>product_data_carriers</code> definierar <em>hur</em> databararen ser ut (QR/RFID, papper/textil, var pa plagget).
-                    <br>Den faktiska <em>identifieraren</em> kommer fran <code>products.gtin</code> (QR) eller <code>items.serial_number</code> (RFID).
+                    <code>products.data_carrier_*</code> definierar <em>hur</em> databararen ser ut (QR/RFID, papper/textil, var pa plagget).
+                    <br>Den faktiska <em>identifieraren</em> kommer fran <code>products.gtin</code> (QR) eller <code>items.sgtin</code> (RFID).
                 </p>
             </div>
         </div>
@@ -512,8 +506,6 @@
                             <span class="col">id</span>
                             <span class="col">name</span>
                             <span class="col">org_number</span>
-                            <span class="col">address</span>
-                            <span class="col">country</span>
                             <span class="col">created_at</span>
                             <span class="col">updated_at</span>
                         </div>
@@ -524,12 +516,12 @@
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">company_id FK</span>
-                            <span class="col">name</span>
+                            <span class="col">brand_name</span>
                             <span class="col">logo_url</span>
                             <span class="col">sub_brand</span>
                             <span class="col">parent_company</span>
                             <span class="col">trader_name</span>
-                            <span class="col">trader_location</span>
+                            <span class="col">trader_address</span>
                         </div>
                     </div>
                     <div class="table-item">
@@ -538,14 +530,12 @@
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">company_id FK</span>
-                            <span class="col">name</span>
-                            <span class="col">location</span>
-                            <span class="col">country</span>
+                            <span class="col">supplier_name</span>
+                            <span class="col">supplier_location</span>
                             <span class="col">facility_registry</span>
                             <span class="col">facility_identifier</span>
                             <span class="col">operator_registry</span>
                             <span class="col">operator_identifier</span>
-                            <span class="col">active</span>
                         </div>
                     </div>
                 </div>
@@ -564,18 +554,12 @@
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">supplier_id FK</span>
-                            <span class="col">name</span>
+                            <span class="col">material_name</span>
                             <span class="col">material_type</span>
-                            <span class="col">weight_gsm</span>
-                            <span class="col">trim_type</span>
-                            <span class="col">dye_class</span>
-                            <span class="col">dye_standard</span>
-                            <span class="col">ink_type</span>
-                            <span class="col">finishes</span>
-                            <span class="col">pattern</span>
-                            <span class="col">thread_content</span>
-                            <span class="col">leather_*</span>
-                            <span class="col">active</span>
+                            <span class="col">net_weight_per_meter</span>
+                            <span class="col">width_cm</span>
+                            <span class="col">created_at</span>
+                            <span class="col">updated_at</span>
                         </div>
                     </div>
                     <div class="table-item">
@@ -587,8 +571,7 @@
                             <span class="col">fiber_type</span>
                             <span class="col">percentage</span>
                             <span class="col">fiber_source</span>
-                            <span class="col">trade_mark</span>
-                            <span class="col">fiber_type_other</span>
+                            <span class="col">material_trademark</span>
                             <span class="col">is_recycled</span>
                             <span class="col">recycled_percentage</span>
                             <span class="col">recycled_source</span>
@@ -601,21 +584,25 @@
                             <span class="col">id</span>
                             <span class="col fk">factory_material_id FK</span>
                             <span class="col">certification_type</span>
-                            <span class="col">certification_class</span>
+                            <span class="col">certification_other</span>
+                            <span class="col">scope</span>
                             <span class="col">certificate_number</span>
-                            <span class="col">certificate_url</span>
+                            <span class="col">valid_from</span>
                             <span class="col">valid_until</span>
+                            <span class="col">document_url</span>
                         </div>
                     </div>
                     <div class="table-item">
-                        <div class="name">factory_material_origins</div>
-                        <div class="desc">Ursprungslander</div>
+                        <div class="name">factory_material_supply_chain</div>
+                        <div class="desc">Ursprung och supply chain</div>
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">factory_material_id FK</span>
-                            <span class="col">process_step</span>
-                            <span class="col">country_code</span>
+                            <span class="col">sequence</span>
+                            <span class="col">process_stage</span>
                             <span class="col">supplier_name</span>
+                            <span class="col">country</span>
+                            <span class="col">facility_id</span>
                         </div>
                     </div>
                 </div>
@@ -635,27 +622,29 @@
                             <span class="col">id</span>
                             <span class="col fk">brand_id FK</span>
                             <span class="col">gtin</span>
-                            <span class="col">name</span>
+                            <span class="col">product_name</span>
                             <span class="col">description</span>
                             <span class="col">photo_url</span>
                             <span class="col">article_number</span>
                             <span class="col">category</span>
                             <span class="col">product_group</span>
-                            <span class="col">line_concept</span>
-                            <span class="col">item_type</span>
+                            <span class="col">line</span>
+                            <span class="col">garment_type</span>
                             <span class="col">gender</span>
                             <span class="col">age_group</span>
                             <span class="col">market_segment</span>
-                            <span class="col">hs_code</span>
-                            <span class="col">hs_code_system</span>
-                            <span class="col">sale_year</span>
-                            <span class="col">sale_season</span>
+                            <span class="col">commodity_code_system</span>
+                            <span class="col">commodity_code_number</span>
+                            <span class="col">year_of_sale</span>
+                            <span class="col">season_of_sale</span>
                             <span class="col">msrp</span>
                             <span class="col">resale_price</span>
-                            <span class="col">currency</span>
+                            <span class="col">price_currency</span>
                             <span class="col">water_properties</span>
-                            <span class="col">net_weight_kg</span>
-                            <span class="col">active</span>
+                            <span class="col">weight_kg</span>
+                            <span class="col">data_carrier_type</span>
+                            <span class="col">data_carrier_material</span>
+                            <span class="col">data_carrier_location</span>
                         </div>
                     </div>
                     <div class="table-item">
@@ -665,88 +654,83 @@
                             <span class="col">id</span>
                             <span class="col fk">product_id FK</span>
                             <span class="col">sku</span>
-                            <span class="col">item_number</span>
                             <span class="col">size</span>
                             <span class="col">size_system</span>
-                            <span class="col">color_brand</span>
-                            <span class="col">color_standard</span>
-                            <span class="col">active</span>
+                            <span class="col">color_name</span>
+                            <span class="col">color_code</span>
                         </div>
                     </div>
                     <div class="table-item">
-                        <div class="name">product_data_carriers</div>
-                        <div class="desc">QR/RFID-info (T4V 370)</div>
-                        <div class="columns">
-                            <span class="col">id</span>
-                            <span class="col fk">product_id FK</span>
-                            <span class="col">carrier_type</span>
-                            <span class="col">carrier_material</span>
-                            <span class="col">carrier_location</span>
-                        </div>
-                    </div>
-                    <div class="table-item">
-                        <div class="name">product_care_instructions</div>
+                        <div class="name">care_information</div>
                         <div class="desc">Skotselrad (T4V 400)</div>
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">product_id FK</span>
-                            <span class="col">care_symbols_url</span>
+                            <span class="col">care_image_url</span>
                             <span class="col">care_text</span>
                             <span class="col">safety_information</span>
                         </div>
                     </div>
                     <div class="table-item">
-                        <div class="name">product_compliance</div>
+                        <div class="name">compliance_information</div>
                         <div class="desc">Compliance (T4V 500)</div>
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">product_id FK</span>
-                            <span class="col">has_harmful_substances</span>
-                            <span class="col">harmful_substances_info</span>
-                            <span class="col">has_microfibers</span>
-                            <span class="col">chemical_standard</span>
-                            <span class="col">chemical_validation_url</span>
-                            <span class="col">scan4chem_url</span>
+                            <span class="col">contains_svhc</span>
+                            <span class="col">svhc_details</span>
+                            <span class="col">scan4chem_link</span>
+                            <span class="col">sheds_microfibers</span>
                             <span class="col">traceability_provider</span>
                         </div>
                     </div>
                     <div class="table-item">
-                        <div class="name">product_certifications</div>
+                        <div class="name">certifications</div>
                         <div class="desc">Produktcertifikat</div>
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">product_id FK</span>
-                            <span class="col">certification_type</span>
-                            <span class="col">certificate_number</span>
-                            <span class="col">certificate_url</span>
+                            <span class="col">certification_name</span>
+                            <span class="col">certification_other</span>
+                            <span class="col">validation_document_url</span>
                             <span class="col">valid_until</span>
                         </div>
                     </div>
                     <div class="table-item">
-                        <div class="name">product_circularity</div>
+                        <div class="name">chemical_compliance</div>
+                        <div class="desc">Kemisk compliance</div>
+                        <div class="columns">
+                            <span class="col">id</span>
+                            <span class="col fk">product_id FK</span>
+                            <span class="col">compliance_standard</span>
+                            <span class="col">validation_document_url</span>
+                        </div>
+                    </div>
+                    <div class="table-item">
+                        <div class="name">circularity_information</div>
                         <div class="desc">Cirkularitet (T4V 600)</div>
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">product_id FK</span>
-                            <span class="col">performance_info</span>
-                            <span class="col">recyclability_info</span>
+                            <span class="col">performance</span>
+                            <span class="col">recyclability</span>
                             <span class="col">take_back_instructions</span>
                             <span class="col">recycling_instructions</span>
-                            <span class="col">disassembly_sorters</span>
-                            <span class="col">disassembly_user</span>
-                            <span class="col">circular_strategy</span>
-                            <span class="col">circular_strategy_desc</span>
+                            <span class="col">disassembly_instructions_sorters</span>
+                            <span class="col">disassembly_instructions_user</span>
+                            <span class="col">circular_design_strategy</span>
+                            <span class="col">circular_design_strategy_description</span>
                             <span class="col">repair_instructions</span>
                         </div>
                     </div>
                     <div class="table-item">
-                        <div class="name">product_sustainability</div>
+                        <div class="name">sustainability_information</div>
                         <div class="desc">Hallbarhet (T4V 650)</div>
                         <div class="columns">
                             <span class="col">id</span>
                             <span class="col fk">product_id FK</span>
                             <span class="col">brand_statement</span>
-                            <span class="col">statement_url</span>
+                            <span class="col">brand_statement_link</span>
                             <span class="col">environmental_footprint</span>
                         </div>
                     </div>
@@ -762,24 +746,13 @@
                 <div class="table-group-content">
                     <div class="table-item">
                         <div class="name">batches</div>
-                        <div class="desc">Produktionsbatch</div>
+                        <div class="desc">Produktionsbatch (per variant)</div>
                         <div class="columns">
                             <span class="col">id</span>
-                            <span class="col fk">brand_id FK</span>
+                            <span class="col fk">product_variant_id FK</span>
                             <span class="col">batch_number</span>
                             <span class="col">po_number</span>
                             <span class="col">production_date</span>
-                            <span class="col">quantity</span>
-                            <span class="col">status</span>
-                        </div>
-                    </div>
-                    <div class="table-item">
-                        <div class="name">batch_variants</div>
-                        <div class="desc">SKU:er i batch</div>
-                        <div class="columns">
-                            <span class="col">id</span>
-                            <span class="col fk">batch_id FK</span>
-                            <span class="col fk">product_variant_id FK</span>
                             <span class="col">quantity</span>
                         </div>
                     </div>
@@ -791,6 +764,7 @@
                             <span class="col fk">batch_id FK</span>
                             <span class="col fk">factory_material_id FK</span>
                             <span class="col">component_type</span>
+                            <span class="col">quantity_meters</span>
                         </div>
                     </div>
                     <div class="table-item">
@@ -800,8 +774,8 @@
                             <span class="col">id</span>
                             <span class="col fk">batch_id FK</span>
                             <span class="col fk">supplier_id FK</span>
-                            <span class="col">process_step</span>
-                            <span class="col">country_code</span>
+                            <span class="col">production_stage</span>
+                            <span class="col">country_of_origin</span>
                         </div>
                     </div>
                 </div>
@@ -821,8 +795,8 @@
                             <span class="col">id</span>
                             <span class="col fk">batch_id FK</span>
                             <span class="col fk">product_variant_id FK</span>
-                            <span class="col">serial_number</span>
-                            <span class="col">rfid_tag_id</span>
+                            <span class="col">tid</span>
+                            <span class="col">sgtin</span>
                             <span class="col">created_at</span>
                         </div>
                     </div>
@@ -845,12 +819,12 @@
                     <table>
                         <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
                         <tbody>
-                            <tr><td class="nr">100,00</td><td>Brand</td><td class="col">name</td></tr>
+                            <tr><td class="nr">100,00</td><td>Brand</td><td class="col">brand_name</td></tr>
                             <tr><td class="nr">101,00</td><td>Logo</td><td class="col">logo_url</td></tr>
                             <tr><td class="nr">102,00</td><td>Sub Brand</td><td class="col">sub_brand</td></tr>
                             <tr><td class="nr">103,00</td><td>Parent Company</td><td class="col">parent_company</td></tr>
                             <tr><td class="nr">104,00</td><td>Trader</td><td class="col">trader_name</td></tr>
-                            <tr><td class="nr">105,00</td><td>Trader Location</td><td class="col">trader_location</td></tr>
+                            <tr><td class="nr">105,00</td><td>Trader Address</td><td class="col">trader_address</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -863,21 +837,21 @@
                         <span class="title">200-serien: Supply Chain</span>
                         <span class="count">(9 falt)</span>
                     </div>
-                    <span class="table-badge">&rarr; suppliers + factory_material_origins</span>
+                    <span class="table-badge">&rarr; suppliers + factory_material_supply_chain</span>
                 </div>
                 <div class="mapping-content">
                     <table>
                         <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
                         <tbody>
-                            <tr><td class="nr">200,00</td><td>Supplier Name</td><td class="col">suppliers.name</td></tr>
-                            <tr><td class="nr">201,00</td><td>Supplier Location</td><td class="col">suppliers.location</td></tr>
+                            <tr><td class="nr">200,00</td><td>Supplier Name</td><td class="col">suppliers.supplier_name</td></tr>
+                            <tr><td class="nr">201,00</td><td>Supplier Location</td><td class="col">suppliers.supplier_location</td></tr>
                             <tr><td class="nr">202,00</td><td>Facility Registry</td><td class="col">suppliers.facility_registry</td></tr>
                             <tr><td class="nr">202,10</td><td>Facility Identifier</td><td class="col">suppliers.facility_identifier</td></tr>
                             <tr><td class="nr">203,00</td><td>Operator Registry</td><td class="col">suppliers.operator_registry</td></tr>
                             <tr><td class="nr">203,10</td><td>Operator Identifier</td><td class="col">suppliers.operator_identifier</td></tr>
-                            <tr><td class="nr">204,00</td><td>Country - Confection</td><td class="col">batch_suppliers.country_code</td></tr>
-                            <tr><td class="nr">205,00</td><td>Country - Dyeing</td><td class="col">factory_material_origins</td></tr>
-                            <tr><td class="nr">206,00</td><td>Country - Weaving</td><td class="col">factory_material_origins</td></tr>
+                            <tr><td class="nr">204,00</td><td>Country - Confection</td><td class="col">batch_suppliers.country_of_origin</td></tr>
+                            <tr><td class="nr">205,00</td><td>Country - Dyeing</td><td class="col">factory_material_supply_chain.country</td></tr>
+                            <tr><td class="nr">206,00</td><td>Country - Weaving</td><td class="col">factory_material_supply_chain.country</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -897,14 +871,14 @@
                         <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
                         <tbody>
                             <tr><td class="nr">300,10</td><td>Product ID (GTIN)</td><td class="col">products.gtin</td></tr>
-                            <tr><td class="nr">300,20</td><td>Unique Product ID</td><td class="col">items.serial_number &#9888; Fas 2</td></tr>
-                            <tr><td class="nr">301,00</td><td>Product Name</td><td class="col">products.name</td></tr>
+                            <tr><td class="nr">300,20</td><td>Unique Product ID</td><td class="col">items.sgtin &#9888; Fas 2</td></tr>
+                            <tr><td class="nr">301,00</td><td>Product Name</td><td class="col">products.product_name</td></tr>
                             <tr><td class="nr">302,00</td><td>Description</td><td class="col">products.description</td></tr>
                             <tr><td class="nr">304,00</td><td>Article Number</td><td class="col">products.article_number</td></tr>
-                            <tr><td class="nr">304,10</td><td>Item Number</td><td class="col">product_variants.item_number</td></tr>
+                            <tr><td class="nr">304,10</td><td>SKU</td><td class="col">product_variants.sku</td></tr>
                             <tr><td class="nr">305,00</td><td>PO Number</td><td class="col">batches.po_number</td></tr>
                             <tr><td class="nr">309,00</td><td>Size</td><td class="col">product_variants.size</td></tr>
-                            <tr><td class="nr">310,00</td><td>Color (Brand)</td><td class="col">product_variants.color_brand</td></tr>
+                            <tr><td class="nr">310,00</td><td>Color (Brand)</td><td class="col">product_variants.color_name</td></tr>
                             <tr><td class="nr">...</td><td>(+21 falt)</td><td class="col">Se fullstandig mappning</td></tr>
                         </tbody>
                     </table>
@@ -918,7 +892,7 @@
                         <span class="title">350-serien: Material Information</span>
                         <span class="count">(26 falt)</span>
                     </div>
-                    <span class="table-badge">&rarr; factory_materials + compositions</span>
+                    <span class="table-badge">&rarr; factory_materials + factory_material_compositions</span>
                 </div>
                 <div class="mapping-content">
                     <table>
@@ -926,12 +900,12 @@
                         <tbody>
                             <tr><td class="nr">350,00</td><td>Component</td><td class="col">batch_materials.component_type</td></tr>
                             <tr><td class="nr">350,10</td><td>Material</td><td class="col">factory_materials.material_type</td></tr>
-                            <tr><td class="nr">350,20</td><td>Content Name</td><td class="col">compositions.fiber_type</td></tr>
-                            <tr><td class="nr">350,21</td><td>Content Value</td><td class="col">compositions.percentage</td></tr>
-                            <tr><td class="nr">350,22</td><td>Content Source</td><td class="col">compositions.fiber_source</td></tr>
-                            <tr><td class="nr">351,00</td><td>Recycled</td><td class="col">compositions.is_recycled</td></tr>
-                            <tr><td class="nr">355,00</td><td>Dye Class</td><td class="col">factory_materials.dye_class</td></tr>
-                            <tr><td class="nr">...</td><td>(+19 falt)</td><td class="col">Inkl. lader, trim, finish</td></tr>
+                            <tr><td class="nr">350,20</td><td>Content Name</td><td class="col">factory_material_compositions.fiber_type</td></tr>
+                            <tr><td class="nr">350,21</td><td>Content Value</td><td class="col">factory_material_compositions.percentage</td></tr>
+                            <tr><td class="nr">350,22</td><td>Content Source</td><td class="col">factory_material_compositions.fiber_source</td></tr>
+                            <tr><td class="nr">351,00</td><td>Recycled</td><td class="col">factory_material_compositions.is_recycled</td></tr>
+                            <tr><td class="nr">351,10</td><td>Recycled Percentage</td><td class="col">factory_material_compositions.recycled_percentage</td></tr>
+                            <tr><td class="nr">...</td><td>(+19 falt)</td><td class="col">Inkl. certifikat, supply chain</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -944,15 +918,15 @@
                         <span class="title">370-serien: Digital Identifier</span>
                         <span class="count">(3 falt)</span>
                     </div>
-                    <span class="table-badge">&rarr; product_data_carriers</span>
+                    <span class="table-badge">&rarr; products</span>
                 </div>
                 <div class="mapping-content">
                     <table>
                         <thead><tr><th class="nr">Nr</th><th>T4V Falt</th><th>&rarr; Kolumn</th></tr></thead>
                         <tbody>
-                            <tr><td class="nr">370,00</td><td>Carrier Type</td><td class="col">carrier_type</td></tr>
-                            <tr><td class="nr">370,10</td><td>Carrier Material</td><td class="col">carrier_material</td></tr>
-                            <tr><td class="nr">370,20</td><td>Carrier Location</td><td class="col">carrier_location</td></tr>
+                            <tr><td class="nr">370,00</td><td>Carrier Type</td><td class="col">products.data_carrier_type</td></tr>
+                            <tr><td class="nr">370,10</td><td>Carrier Material</td><td class="col">products.data_carrier_material</td></tr>
+                            <tr><td class="nr">370,20</td><td>Carrier Location</td><td class="col">products.data_carrier_location</td></tr>
                         </tbody>
                     </table>
                 </div>
