@@ -1,4 +1,8 @@
-<?php // Materials Test ?>
+<?php
+require_once __DIR__ . '/../src/Config/Auth.php';
+use App\Config\Auth;
+Auth::requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -38,6 +42,7 @@
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Factory Materials</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
     </div>
 
     <div class="container">
@@ -67,7 +72,7 @@
                         <option value="other">Other</option>
                     </select>
                     <label>Internal Code:</label>
-                    <input type="text" id="internal_code" placeholder="MAT-001">
+                    <input type="text" id="_internal_code" placeholder="MAT-001">
                     <label>Vikt per meter (g):</label>
                     <input type="number" step="0.0001" id="net_weight_per_meter" placeholder="150">
                     <label>Bredd (cm):</label>
@@ -204,14 +209,30 @@
         }
 
         function getSupplierId() {
-            return document.getElementById('supplier_id').value;
+            const val = document.getElementById('supplier_id').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en supplier först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         function getMaterialId() {
-            return document.getElementById('material_id_select').value;
+            const val = document.getElementById('material_id_select').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj ett material först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         async function api(method, endpoint, data = null) {
+            // Prevent API calls with invalid IDs
+            if (endpoint.includes('/null/') || endpoint.includes('//')) {
+                return;
+            }
             const opts = { method, headers: { 'Content-Type': 'application/json' } };
             if (data) opts.body = JSON.stringify(data);
             try {
@@ -260,7 +281,7 @@
             api('POST', '/api/suppliers/' + document.getElementById('supplier_id').value + '/materials', {
                 material_name: document.getElementById('material_name').value,
                 material_type: document.getElementById('material_type').value,
-                internal_code: document.getElementById('internal_code').value || null,
+                _internal_code: document.getElementById('_internal_code').value || null,
                 net_weight_per_meter: parseFloat(document.getElementById('net_weight_per_meter').value) || null,
                 width_cm: parseInt(document.getElementById('width_cm').value) || null
             }).then(() => loadMaterials());

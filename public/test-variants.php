@@ -1,4 +1,8 @@
-<?php // Variants Test ?>
+<?php
+require_once __DIR__ . '/../src/Config/Auth.php';
+use App\Config\Auth;
+Auth::requireLogin();
+?>
 <!DOCTYPE html>
 <html lang="sv">
 <head>
@@ -37,6 +41,7 @@
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Product Variants</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
     </div>
 
     <div class="container">
@@ -109,14 +114,30 @@
         }
 
         function getProductId() {
-            return document.getElementById('product_id').value;
+            const val = document.getElementById('product_id').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en produkt först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         function getVariantId() {
-            return document.getElementById('variant_id_select').value;
+            const val = document.getElementById('variant_id_select').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en variant först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
         }
 
         async function api(method, endpoint, data = null) {
+            // Prevent API calls with invalid IDs
+            if (endpoint.includes('/null/') || endpoint.includes('//') || endpoint.endsWith('/null')) {
+                return;
+            }
             const opts = { method, headers: { 'Content-Type': 'application/json' } };
             if (data) opts.body = JSON.stringify(data);
             try {
