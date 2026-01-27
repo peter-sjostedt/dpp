@@ -77,22 +77,22 @@ class BatchMaterialController extends TenantAwareController {
         if (TenantContext::isBrand()) {
             // Brands see all materials in their batch
             $stmt = $this->db->prepare(
-                'SELECT bm.*, fm.material_name, fm.material_type, fm._internal_code
+                'SELECT bm.*, fm.material_name, fm.material_type, fm.description
                  FROM batch_materials bm
                  JOIN factory_materials fm ON bm.factory_material_id = fm.id
                  WHERE bm.batch_id = ?
-                 ORDER BY bm.component_type'
+                 ORDER BY bm.component'
             );
             $stmt->execute([$params['batchId']]);
         } else {
             // Suppliers only see their own materials in the batch
             $supplierId = TenantContext::getSupplierId();
             $stmt = $this->db->prepare(
-                'SELECT bm.*, fm.material_name, fm.material_type, fm._internal_code
+                'SELECT bm.*, fm.material_name, fm.material_type, fm.description
                  FROM batch_materials bm
                  JOIN factory_materials fm ON bm.factory_material_id = fm.id
                  WHERE bm.batch_id = ? AND fm.supplier_id = ?
-                 ORDER BY bm.component_type'
+                 ORDER BY bm.component'
             );
             $stmt->execute([$params['batchId'], $supplierId]);
         }
@@ -105,7 +105,7 @@ class BatchMaterialController extends TenantAwareController {
         $this->requireBrand();
 
         $data = Validator::getJsonBody();
-        Validator::required($data, ['factory_material_id', 'component_type']);
+        Validator::required($data, ['factory_material_id']);
 
         // Verify batch exists and belongs to this brand
         if (!$this->verifyBatchOwnership($params['batchId'])) {
@@ -121,14 +121,13 @@ class BatchMaterialController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO batch_materials (
-                batch_id, factory_material_id, component_type, quantity_meters
-            ) VALUES (?, ?, ?, ?)'
+                batch_id, factory_material_id, component
+            ) VALUES (?, ?, ?)'
         );
         $stmt->execute([
             $params['batchId'],
             $data['factory_material_id'],
-            $data['component_type'],
-            $data['quantity_meters'] ?? null
+            $data['component'] ?? null
         ]);
 
         $id = (int) $this->db->lastInsertId();
@@ -141,7 +140,7 @@ class BatchMaterialController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'SELECT bm.*, fm.material_name, fm.material_type, fm._internal_code
+            'SELECT bm.*, fm.material_name, fm.material_type, fm.description
              FROM batch_materials bm
              JOIN factory_materials fm ON bm.factory_material_id = fm.id
              WHERE bm.id = ?'
@@ -162,13 +161,11 @@ class BatchMaterialController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'UPDATE batch_materials SET
-                component_type = COALESCE(?, component_type),
-                quantity_meters = COALESCE(?, quantity_meters)
+                component = COALESCE(?, component)
             WHERE id = ?'
         );
         $stmt->execute([
-            $data['component_type'] ?? null,
-            $data['quantity_meters'] ?? null,
+            $data['component'] ?? null,
             $params['id']
         ]);
 
@@ -196,10 +193,10 @@ class BatchMaterialController extends TenantAwareController {
         if (TenantContext::isBrand()) {
             $brandId = TenantContext::getBrandId();
             $stmt = $this->db->prepare(
-                'SELECT bm.*, b.batch_number, pv.sku
+                'SELECT bm.*, b.batch_number, p.product_name
                  FROM batch_materials bm
                  JOIN batches b ON bm.batch_id = b.id
-                 JOIN product_variants pv ON b.product_variant_id = pv.id
+                 JOIN products p ON b.product_id = p.id
                  WHERE bm.factory_material_id = ? AND b.brand_id = ?
                  ORDER BY b.created_at DESC'
             );
@@ -211,10 +208,10 @@ class BatchMaterialController extends TenantAwareController {
             }
 
             $stmt = $this->db->prepare(
-                'SELECT bm.*, b.batch_number, pv.sku
+                'SELECT bm.*, b.batch_number, p.product_name
                  FROM batch_materials bm
                  JOIN batches b ON bm.batch_id = b.id
-                 JOIN product_variants pv ON b.product_variant_id = pv.id
+                 JOIN products p ON b.product_id = p.id
                  WHERE bm.factory_material_id = ?
                  ORDER BY b.created_at DESC'
             );

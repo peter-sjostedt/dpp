@@ -49,9 +49,9 @@ class FactoryMaterialSupplyChainController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            "SELECT * FROM factory_material_supply_chain
+            'SELECT * FROM factory_material_supply_chain
              WHERE factory_material_id = ?
-             ORDER BY FIELD(process_stage, 'fiber', 'spinning', 'weaving_knitting', 'dyeing', 'finishing')"
+             ORDER BY sequence'
         );
         $stmt->execute([$params['materialId']]);
         Response::success($stmt->fetchAll());
@@ -62,24 +62,32 @@ class FactoryMaterialSupplyChainController extends TenantAwareController {
         $this->requireSupplier();
 
         $data = Validator::getJsonBody();
-        Validator::required($data, ['process_stage']);
+        Validator::required($data, ['process_step']);
 
         // Only allow creating supply chain steps for OWN materials
         if (!$this->verifyMaterialOwnership($params['materialId'])) {
             Response::error('Factory material not found', 404);
         }
 
+        // Get next sequence number
+        $stmt = $this->db->prepare(
+            'SELECT COALESCE(MAX(sequence), 0) + 1 FROM factory_material_supply_chain WHERE factory_material_id = ?'
+        );
+        $stmt->execute([$params['materialId']]);
+        $nextSeq = (int) $stmt->fetchColumn();
+
         $stmt = $this->db->prepare(
             'INSERT INTO factory_material_supply_chain (
-                factory_material_id, process_stage, supplier_name, country, facility_id
-            ) VALUES (?, ?, ?, ?, ?)'
+                factory_material_id, sequence, process_step, country, facility_name, facility_identifier
+            ) VALUES (?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['materialId'],
-            $data['process_stage'],
-            $data['supplier_name'] ?? null,
+            $data['sequence'] ?? $nextSeq,
+            $data['process_step'],
             $data['country'] ?? null,
-            $data['facility_id'] ?? null
+            $data['facility_name'] ?? null,
+            $data['facility_identifier'] ?? null
         ]);
 
         $id = (int) $this->db->lastInsertId();
@@ -109,17 +117,19 @@ class FactoryMaterialSupplyChainController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'UPDATE factory_material_supply_chain SET
-                process_stage = COALESCE(?, process_stage),
-                supplier_name = COALESCE(?, supplier_name),
+                sequence = COALESCE(?, sequence),
+                process_step = COALESCE(?, process_step),
                 country = COALESCE(?, country),
-                facility_id = COALESCE(?, facility_id)
+                facility_name = COALESCE(?, facility_name),
+                facility_identifier = COALESCE(?, facility_identifier)
             WHERE id = ?'
         );
         $stmt->execute([
-            $data['process_stage'] ?? null,
-            $data['supplier_name'] ?? null,
+            $data['sequence'] ?? null,
+            $data['process_step'] ?? null,
             $data['country'] ?? null,
-            $data['facility_id'] ?? null,
+            $data['facility_name'] ?? null,
+            $data['facility_identifier'] ?? null,
             $params['id']
         ]);
 

@@ -41,7 +41,7 @@ Auth::requireLogin();
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Items (Individuella produkter)</h1>
         <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">🆕 Per plagg (Fas 2)</p>
-        <div id="company_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
+        <div id="tenant_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
     <div class="container">
@@ -51,12 +51,12 @@ Auth::requireLogin();
             <div class="section" id="sec-select">
                 <div class="section-header" onclick="toggle('sec-select')"><h2>Välj batch</h2></div>
                 <div class="section-content">
-                    <label>Brand:</label>
-                    <select id="brand_id"></select>
+                    <div id="brand_wrapper">
+                        <label>Brand:</label>
+                        <select id="brand_id"></select>
+                    </div>
                     <label>Product:</label>
                     <select id="product_id"></select>
-                    <label>Variant:</label>
-                    <select id="variant_id"></select>
                     <label>Batch:</label>
                     <select id="batch_id"></select>
                     <button class="btn-get" onclick="api('GET', '/api/batches/' + document.getElementById('batch_id').value + '/items')">Hämta items</button>
@@ -126,21 +126,24 @@ Auth::requireLogin();
         function getApiKey() {
             const apiKey = localStorage.getItem('dpp_api_key');
             if (!apiKey) {
-                document.getElementById('response').textContent = 'Välj ett företag på huvudsidan först!';
+                document.getElementById('response').textContent = 'Välj en tenant på huvudsidan först!';
                 document.getElementById('response').className = 'response-section error';
                 return null;
             }
             return apiKey;
         }
 
-        function showCompanyBanner() {
-            const companyName = localStorage.getItem('dpp_company_name');
-            const banner = document.getElementById('company_banner');
-            if (companyName) {
-                banner.textContent = 'Testar som: ' + companyName;
+        function showTenantBanner() {
+            const tenantName = localStorage.getItem('dpp_tenant_name');
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const banner = document.getElementById('tenant_banner');
+            if (tenantName && tenantType) {
+                const typeLabel = tenantType === 'brand' ? 'Brand' : 'Supplier';
+                banner.textContent = 'Testar som ' + typeLabel + ': ' + tenantName;
                 banner.style.display = 'inline-block';
+                banner.style.background = tenantType === 'brand' ? 'rgba(123,31,162,0.5)' : 'rgba(21,101,192,0.5)';
             } else {
-                banner.textContent = 'Inget företag valt - välj på huvudsidan';
+                banner.textContent = 'Ingen tenant vald - välj på huvudsidan';
                 banner.style.background = 'rgba(255,0,0,0.3)';
             }
         }
@@ -176,7 +179,10 @@ Auth::requireLogin();
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const res = await fetch('/api/brands', {
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const tenantId = localStorage.getItem('dpp_tenant_id');
+
+            const res = await fetch('/api/brands/all', {
                 headers: { 'X-API-Key': apiKey }
             });
             const json = await res.json();
@@ -184,8 +190,14 @@ Auth::requireLogin();
             select.innerHTML = '<option value="">-- Välj brand --</option>';
             if (json.data) {
                 json.data.forEach(b => {
-                    select.innerHTML += `<option value="${b.id}">${b.id}: ${b.brand_name}</option>`;
+                    const selected = (tenantType === 'brand' && b.id == tenantId) ? ' selected' : '';
+                    select.innerHTML += `<option value="${b.id}"${selected}>${b.id}: ${b.brand_name}</option>`;
                 });
+                // Hide brand dropdown if tenant is a brand (only one option)
+                if (tenantType === 'brand' && tenantId) {
+                    document.getElementById('brand_wrapper').style.display = 'none';
+                    loadProducts();
+                }
             }
         }
 
@@ -196,7 +208,7 @@ Auth::requireLogin();
             const brandId = document.getElementById('brand_id').value;
             const select = document.getElementById('product_id');
             select.innerHTML = '<option value="">-- Välj produkt --</option>';
-            clearDown('variant_id', 'batch_id', 'item_id_select');
+            clearDown('batch_id', 'item_id_select');
 
             if (brandId) {
                 const res = await fetch('/api/brands/' + brandId + '/products', {
@@ -211,39 +223,17 @@ Auth::requireLogin();
             }
         }
 
-        async function loadVariants() {
-            const apiKey = getApiKey();
-            if (!apiKey) return;
-
-            const productId = document.getElementById('product_id').value;
-            const select = document.getElementById('variant_id');
-            select.innerHTML = '<option value="">-- Välj variant --</option>';
-            clearDown('batch_id', 'item_id_select');
-
-            if (productId) {
-                const res = await fetch('/api/products/' + productId + '/variants', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const json = await res.json();
-                if (json.data) {
-                    json.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.sku} (${v.size || '-'})</option>`;
-                    });
-                }
-            }
-        }
-
         async function loadBatches() {
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const variantId = document.getElementById('variant_id').value;
+            const productId = document.getElementById('product_id').value;
             const select = document.getElementById('batch_id');
             select.innerHTML = '<option value="">-- Välj batch --</option>';
             clearDown('item_id_select');
 
-            if (variantId) {
-                const res = await fetch('/api/variants/' + variantId + '/batches', {
+            if (productId) {
+                const res = await fetch('/api/products/' + productId + '/batches', {
                     headers: { 'X-API-Key': apiKey }
                 });
                 const json = await res.json();
@@ -286,15 +276,14 @@ Auth::requireLogin();
 
         function loadAll() {
             loadBrands();
-            clearDown('product_id', 'variant_id', 'batch_id', 'item_id_select');
+            clearDown('product_id', 'batch_id', 'item_id_select');
         }
 
         document.getElementById('brand_id').addEventListener('change', loadProducts);
-        document.getElementById('product_id').addEventListener('change', loadVariants);
-        document.getElementById('variant_id').addEventListener('change', loadBatches);
+        document.getElementById('product_id').addEventListener('change', loadBatches);
         document.getElementById('batch_id').addEventListener('change', loadItems);
 
-        showCompanyBanner();
+        showTenantBanner();
         loadAll();
 
         function create() {

@@ -90,8 +90,8 @@ CREATE TABLE products (
     brand_id INT NOT NULL,
 
     -- Product ID (300-serien)
-    product_id_system VARCHAR(50) COMMENT '300,00 - GTIN, SKU, Style Number',
-    product_id_value VARCHAR(100) COMMENT '300,10',
+    gtin_type VARCHAR(50) COMMENT '300,00 - GTIN, SKU, Style Number',
+    gtin VARCHAR(100) COMMENT '300,10 - GTIN värde',
     product_name VARCHAR(255) NOT NULL COMMENT '301,00',
     description TEXT COMMENT '302,00',
     photo_url VARCHAR(500) COMMENT '303,00',
@@ -154,6 +154,15 @@ CREATE TABLE product_components (
     recycled BOOLEAN COMMENT '351,00',
     recycled_percentage DECIMAL(5,2) COMMENT '351,10',
     recycled_input_source VARCHAR(50) COMMENT '351,20 - Post-consumer etc',
+
+    -- Leather (352)
+    leather_species VARCHAR(50) COMMENT '352,00 - Bovine, Fish, Goat',
+    leather_grade VARCHAR(50) COMMENT '352,10 - Full Grain etc',
+    leather_species_other VARCHAR(100) COMMENT '352,11 - Om ej i lista',
+    leather_pattern VARCHAR(50) COMMENT '352,20 - Embossing etc',
+    leather_thickness DECIMAL(5,2) COMMENT '352,30 - Tjocklek i mm',
+    leather_max DECIMAL(5,2) COMMENT '352,40 - Max tjocklek',
+    leather_min DECIMAL(5,2) COMMENT '352,50 - Min tjocklek',
 
     -- Thread, ink, dye, finishes (353-357)
     sewing_thread_content VARCHAR(50) COMMENT '353,00',

@@ -5,6 +5,10 @@ use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
+/**
+ * Circularity Controller - Uses circularity_info table
+ * Handles recyclability, take-back, repair instructions, etc.
+ */
 class CircularityController extends TenantAwareController {
 
     /**
@@ -30,7 +34,7 @@ class CircularityController extends TenantAwareController {
             Response::error('Product not found', 404);
         }
 
-        $stmt = $this->db->prepare('SELECT * FROM circularity_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM circularity_info WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         $circularity = $stmt->fetch();
 
@@ -52,14 +56,14 @@ class CircularityController extends TenantAwareController {
         }
 
         // Check if circularity info exists
-        $stmt = $this->db->prepare('SELECT id FROM circularity_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT id FROM circularity_info WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         $existing = $stmt->fetch();
 
         if ($existing) {
             // Update
             $stmt = $this->db->prepare(
-                'UPDATE circularity_information SET
+                'UPDATE circularity_info SET
                     performance = COALESCE(?, performance),
                     recyclability = COALESCE(?, recyclability),
                     take_back_instructions = COALESCE(?, take_back_instructions),
@@ -67,7 +71,7 @@ class CircularityController extends TenantAwareController {
                     disassembly_instructions_sorters = COALESCE(?, disassembly_instructions_sorters),
                     disassembly_instructions_user = COALESCE(?, disassembly_instructions_user),
                     circular_design_strategy = COALESCE(?, circular_design_strategy),
-                    circular_design_strategy_description = COALESCE(?, circular_design_strategy_description),
+                    circular_design_description = COALESCE(?, circular_design_description),
                     repair_instructions = COALESCE(?, repair_instructions)
                  WHERE product_id = ?'
             );
@@ -79,18 +83,18 @@ class CircularityController extends TenantAwareController {
                 $data['disassembly_instructions_sorters'] ?? null,
                 $data['disassembly_instructions_user'] ?? null,
                 $data['circular_design_strategy'] ?? null,
-                $data['circular_design_strategy_description'] ?? null,
+                $data['circular_design_description'] ?? null,
                 $data['repair_instructions'] ?? null,
                 $params['productId']
             ]);
         } else {
             // Create
             $stmt = $this->db->prepare(
-                'INSERT INTO circularity_information (
+                'INSERT INTO circularity_info (
                     product_id, performance, recyclability, take_back_instructions,
                     recycling_instructions, disassembly_instructions_sorters,
                     disassembly_instructions_user, circular_design_strategy,
-                    circular_design_strategy_description, repair_instructions
+                    circular_design_description, repair_instructions
                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
@@ -102,7 +106,7 @@ class CircularityController extends TenantAwareController {
                 $data['disassembly_instructions_sorters'] ?? null,
                 $data['disassembly_instructions_user'] ?? null,
                 $data['circular_design_strategy'] ?? null,
-                $data['circular_design_strategy_description'] ?? null,
+                $data['circular_design_description'] ?? null,
                 $data['repair_instructions'] ?? null
             ]);
         }
@@ -118,13 +122,13 @@ class CircularityController extends TenantAwareController {
             Response::error('Product not found', 404);
         }
 
-        $stmt = $this->db->prepare('SELECT id FROM circularity_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT id FROM circularity_info WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         if (!$stmt->fetch()) {
             Response::error('Circularity information not found', 404);
         }
 
-        $stmt = $this->db->prepare('DELETE FROM circularity_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('DELETE FROM circularity_info WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
 
         Response::success(['deleted' => true]);

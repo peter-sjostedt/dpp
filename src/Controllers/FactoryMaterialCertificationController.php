@@ -60,7 +60,7 @@ class FactoryMaterialCertificationController extends TenantAwareController {
         $this->requireSupplier();
 
         $data = Validator::getJsonBody();
-        Validator::required($data, ['certification_type']);
+        Validator::required($data, ['certification']);
 
         // Only allow creating certifications for OWN materials
         if (!$this->verifyMaterialOwnership($params['materialId'])) {
@@ -69,19 +69,14 @@ class FactoryMaterialCertificationController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO factory_material_certifications (
-                factory_material_id, certification_type, certification_other, scope,
-                certificate_number, valid_from, valid_until, document_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                factory_material_id, certification, certification_id, valid_until
+            ) VALUES (?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['materialId'],
-            $data['certification_type'],
-            $data['certification_other'] ?? null,
-            $data['scope'] ?? 'material',
-            $data['certificate_number'] ?? null,
-            $data['valid_from'] ?? null,
-            $data['valid_until'] ?? null,
-            $data['document_url'] ?? null
+            $data['certification'],
+            $data['certification_id'] ?? null,
+            $data['valid_until'] ?? null
         ]);
 
         $id = (int) $this->db->lastInsertId();
@@ -111,23 +106,15 @@ class FactoryMaterialCertificationController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'UPDATE factory_material_certifications SET
-                certification_type = COALESCE(?, certification_type),
-                certification_other = COALESCE(?, certification_other),
-                scope = COALESCE(?, scope),
-                certificate_number = COALESCE(?, certificate_number),
-                valid_from = COALESCE(?, valid_from),
-                valid_until = COALESCE(?, valid_until),
-                document_url = COALESCE(?, document_url)
+                certification = COALESCE(?, certification),
+                certification_id = COALESCE(?, certification_id),
+                valid_until = COALESCE(?, valid_until)
             WHERE id = ?'
         );
         $stmt->execute([
-            $data['certification_type'] ?? null,
-            $data['certification_other'] ?? null,
-            $data['scope'] ?? null,
-            $data['certificate_number'] ?? null,
-            $data['valid_from'] ?? null,
+            $data['certification'] ?? null,
+            $data['certification_id'] ?? null,
             $data['valid_until'] ?? null,
-            $data['document_url'] ?? null,
             $params['id']
         ]);
 

@@ -7,40 +7,104 @@ use App\Helpers\Validator;
 
 /**
  * Batch controller with multi-tenant access control.
+ *
+ * Schema: batches has brand_id, supplier_id, product_id
+ * - supplier_id = the confection/production supplier
+ * - product_id = which product this batch produces
+ *
+ * Access:
  * - As Brand: Full CRUD on own batches (filtered by brand_id)
- * - As Supplier: Read-only access to batches using their materials
+ * - As Supplier: Read-only access to batches where they are the supplier
  */
 class BatchController extends TenantAwareController
 {
     // ========== Batches CRUD ==========
 
+    /**
+     * List batches for a product
+     */
     public function index(array $params): void
+    {
+        $productId = (int) $params['productId'];
+
+        if (TenantContext::isBrand()) {
+            $brandId = TenantContext::getBrandId();
+
+            // Verify product belongs to brand
+            if (!$this->verifyProductOwnership($productId)) {
+                Response::error('Product not found', 404);
+                return;
+            }
+
+            $stmt = $this->db->prepare(
+                'SELECT b.*, s.supplier_name, p.product_name
+                 FROM batches b
+                 LEFT JOIN suppliers s ON b.supplier_id = s.id
+                 LEFT JOIN products p ON b.product_id = p.id
+                 WHERE b.product_id = ? AND b.brand_id = ?
+                 ORDER BY b.production_date DESC'
+            );
+            $stmt->execute([$productId, $brandId]);
+        } else {
+            // Supplier sees batches where they are the confection supplier
+            $supplierId = TenantContext::getSupplierId();
+
+            // Check supplier has relationship with product's brand
+            $stmt = $this->db->prepare(
+                'SELECT p.id FROM products p
+                 JOIN brand_suppliers bs ON p.brand_id = bs.brand_id
+                 WHERE p.id = ? AND bs.supplier_id = ? AND bs._is_active = TRUE'
+            );
+            $stmt->execute([$productId, $supplierId]);
+            if (!$stmt->fetch()) {
+                Response::error('Product not found', 404);
+                return;
+            }
+
+            $stmt = $this->db->prepare(
+                'SELECT b.*, s.supplier_name, p.product_name
+                 FROM batches b
+                 LEFT JOIN suppliers s ON b.supplier_id = s.id
+                 LEFT JOIN products p ON b.product_id = p.id
+                 WHERE b.product_id = ? AND b.supplier_id = ?
+                 ORDER BY b.production_date DESC'
+            );
+            $stmt->execute([$productId, $supplierId]);
+        }
+
+        Response::success($stmt->fetchAll());
+    }
+
+    /**
+     * List all batches (without product filter)
+     */
+    public function indexAll(array $params): void
     {
         if (TenantContext::isBrand()) {
             $brandId = TenantContext::getBrandId();
 
-            // Batches belonging to brand that have items
             $stmt = $this->db->prepare(
-                'SELECT DISTINCT b.*, pv.sku, pv.size, pv.color_name
+                'SELECT b.*, s.supplier_name, p.product_name
                  FROM batches b
-                 LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
-                 JOIN items i ON i.batch_id = b.id
-                 WHERE b.product_variant_id = ? AND b.brand_id = ?
+                 LEFT JOIN suppliers s ON b.supplier_id = s.id
+                 LEFT JOIN products p ON b.product_id = p.id
+                 WHERE b.brand_id = ?
                  ORDER BY b.production_date DESC'
             );
-            $stmt->execute([$params['variantId'], $brandId]);
+            $stmt->execute([$brandId]);
         } else {
-            // Supplier sees batches that use their materials
+            // Supplier sees batches where they are the confection supplier
+            $supplierId = TenantContext::getSupplierId();
+
             $stmt = $this->db->prepare(
-                'SELECT DISTINCT b.*, pv.sku, pv.size, pv.color_name
+                'SELECT b.*, s.supplier_name, p.product_name
                  FROM batches b
-                 LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
-                 JOIN batch_materials bm ON bm.batch_id = b.id
-                 JOIN factory_materials fm ON bm.factory_material_id = fm.id
-                 WHERE b.product_variant_id = ? AND fm.supplier_id = ?
+                 LEFT JOIN suppliers s ON b.supplier_id = s.id
+                 LEFT JOIN products p ON b.product_id = p.id
+                 WHERE b.supplier_id = ?
                  ORDER BY b.production_date DESC'
             );
-            $stmt->execute([$params['variantId'], TenantContext::getSupplierId()]);
+            $stmt->execute([$supplierId]);
         }
 
         Response::success($stmt->fetchAll());
@@ -56,18 +120,22 @@ class BatchController extends TenantAwareController
                 return;
             }
         } else {
-            // Supplier can view batches that use their materials
-            if (!$this->canAccessBatchAsSupplier($batchId)) {
+            // Supplier can view batches where they are the supplier
+            $stmt = $this->db->prepare(
+                'SELECT id FROM batches WHERE id = ? AND supplier_id = ?'
+            );
+            $stmt->execute([$batchId, TenantContext::getSupplierId()]);
+            if (!$stmt->fetch()) {
                 Response::error('Batch not found', 404);
                 return;
             }
         }
 
         $stmt = $this->db->prepare(
-            'SELECT b.*, pv.sku, pv.size, pv.color_name, p.product_name
+            'SELECT b.*, s.supplier_name, s.supplier_location, p.product_name
              FROM batches b
-             LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
-             LEFT JOIN products p ON pv.product_id = p.id
+             LEFT JOIN suppliers s ON b.supplier_id = s.id
+             LEFT JOIN products p ON b.product_id = p.id
              WHERE b.id = ?'
         );
         $stmt->execute([$batchId]);
@@ -78,8 +146,15 @@ class BatchController extends TenantAwareController
             return;
         }
 
-        // Include linked suppliers
-        $batch['suppliers'] = $this->getBatchSuppliers($batchId);
+        // Include linked materials
+        $stmt = $this->db->prepare(
+            'SELECT bm.*, fm.material_name, fm.material_type
+             FROM batch_materials bm
+             JOIN factory_materials fm ON bm.factory_material_id = fm.id
+             WHERE bm.batch_id = ?'
+        );
+        $stmt->execute([$batchId]);
+        $batch['materials'] = $stmt->fetchAll();
 
         Response::success($batch);
     }
@@ -89,32 +164,34 @@ class BatchController extends TenantAwareController
         $this->requireBrand();
 
         $brandId = TenantContext::getBrandId();
+        $productId = (int) $params['productId'];
         $data = Validator::getJsonBody();
 
-        if ($error = Validator::required($data, ['batch_number'])) {
+        if ($error = Validator::required($data, ['batch_number', 'supplier_id'])) {
             Response::error($error);
             return;
         }
 
-        // Verify variant exists and belongs to brand (via product)
-        $stmt = $this->db->prepare(
-            'SELECT pv.id FROM product_variants pv
-             JOIN products p ON pv.product_id = p.id
-             WHERE pv.id = ? AND p.brand_id = ?'
-        );
-        $stmt->execute([$params['variantId'], $brandId]);
-        if (!$stmt->fetch()) {
-            Response::error('Variant not found', 404);
+        // Verify product belongs to brand
+        if (!$this->verifyProductOwnership($productId)) {
+            Response::error('Product not found', 404);
+            return;
+        }
+
+        // Verify supplier is accessible (brand has relationship with this supplier)
+        if (!$this->canAccessSupplier($data['supplier_id'])) {
+            Response::error('Supplier not found', 404);
             return;
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO batches (brand_id, product_variant_id, batch_number, po_number, quantity, production_date, _status)
-             VALUES (?, ?, ?, ?, ?, ?, ?)'
+            'INSERT INTO batches (brand_id, supplier_id, product_id, batch_number, po_number, quantity, production_date, _status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $brandId,
-            $params['variantId'],
+            $data['supplier_id'],
+            $productId,
             $data['batch_number'],
             $data['po_number'] ?? null,
             $data['quantity'] ?? null,
@@ -139,8 +216,15 @@ class BatchController extends TenantAwareController
 
         $data = Validator::getJsonBody();
 
+        // If changing supplier, verify new supplier is accessible
+        if (isset($data['supplier_id']) && !$this->canAccessSupplier($data['supplier_id'])) {
+            Response::error('Supplier not found', 404);
+            return;
+        }
+
         $stmt = $this->db->prepare(
             'UPDATE batches SET
+                supplier_id = COALESCE(?, supplier_id),
                 batch_number = COALESCE(?, batch_number),
                 po_number = COALESCE(?, po_number),
                 quantity = COALESCE(?, quantity),
@@ -149,6 +233,7 @@ class BatchController extends TenantAwareController
              WHERE id = ?'
         );
         $stmt->execute([
+            $data['supplier_id'] ?? null,
             $data['batch_number'] ?? null,
             $data['po_number'] ?? null,
             $data['quantity'] ?? null,
@@ -175,100 +260,5 @@ class BatchController extends TenantAwareController
         $stmt->execute([$batchId]);
 
         Response::success(['deleted' => $batchId]);
-    }
-
-    // ========== Batch Suppliers ==========
-
-    private function getBatchSuppliers(int|string $batchId): array
-    {
-        $stmt = $this->db->prepare(
-            'SELECT bs.*, s.supplier_name, s.supplier_location
-             FROM batch_suppliers bs
-             LEFT JOIN suppliers s ON bs.supplier_id = s.id
-             WHERE bs.batch_id = ?
-             ORDER BY bs.production_stage'
-        );
-        $stmt->execute([$batchId]);
-        return $stmt->fetchAll();
-    }
-
-    public function listSuppliers(array $params): void
-    {
-        $batchId = (int) $params['batchId'];
-
-        if (TenantContext::isBrand()) {
-            if (!$this->verifyBatchOwnership($batchId)) {
-                Response::error('Batch not found', 404);
-                return;
-            }
-        } else {
-            if (!$this->canAccessBatchAsSupplier($batchId)) {
-                Response::error('Batch not found', 404);
-                return;
-            }
-        }
-
-        Response::success($this->getBatchSuppliers($batchId));
-    }
-
-    public function addSupplier(array $params): void
-    {
-        $this->requireBrand();
-
-        $batchId = (int) $params['batchId'];
-        $data = Validator::getJsonBody();
-
-        if ($error = Validator::required($data, ['supplier_id', 'production_stage'])) {
-            Response::error($error);
-            return;
-        }
-
-        // Verify batch belongs to brand
-        if (!$this->verifyBatchOwnership($batchId)) {
-            Response::error('Batch not found', 404);
-            return;
-        }
-
-        // Verify supplier is accessible (brand has relationship with this supplier)
-        if (!$this->canAccessSupplier($data['supplier_id'])) {
-            Response::error('Supplier not found', 404);
-            return;
-        }
-
-        $stmt = $this->db->prepare(
-            'INSERT INTO batch_suppliers (batch_id, supplier_id, production_stage, country_of_origin) VALUES (?, ?, ?, ?)'
-        );
-        $stmt->execute([
-            $batchId,
-            $data['supplier_id'],
-            $data['production_stage'],
-            $data['country_of_origin'] ?? null
-        ]);
-
-        Response::success(['id' => (int)$this->db->lastInsertId()], 201);
-    }
-
-    public function removeSupplier(array $params): void
-    {
-        $this->requireBrand();
-
-        $linkId = (int) $params['id'];
-
-        // Verify the batch_supplier link belongs to a batch owned by this brand
-        $stmt = $this->db->prepare(
-            'SELECT bs.id FROM batch_suppliers bs
-             JOIN batches b ON bs.batch_id = b.id
-             WHERE bs.id = ? AND b.brand_id = ?'
-        );
-        $stmt->execute([$linkId, TenantContext::getBrandId()]);
-        if (!$stmt->fetch()) {
-            Response::error('Batch supplier link not found', 404);
-            return;
-        }
-
-        $stmt = $this->db->prepare('DELETE FROM batch_suppliers WHERE id = ?');
-        $stmt->execute([$linkId]);
-
-        Response::success(['deleted' => $linkId]);
     }
 }

@@ -42,7 +42,7 @@ Auth::requireLogin();
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Product Variants</h1>
         <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
-        <div id="company_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
+        <div id="tenant_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
     <div class="container">
@@ -50,10 +50,12 @@ Auth::requireLogin();
             <button class="btn-refresh" onclick="loadAll()">Ladda om data</button>
 
             <div class="section" id="sec-select">
-                <div class="section-header" onclick="toggle('sec-select')"><h2>Välj produkt</h2></div>
+                <div class="section-header" onclick="toggle('sec-select')" id="sec-select-header"><h2>Välj produkt</h2></div>
                 <div class="section-content">
-                    <label>Brand:</label>
-                    <select id="brand_id"></select>
+                    <div id="brand_wrapper">
+                        <label>Brand:</label>
+                        <select id="brand_id"></select>
+                    </div>
                     <label>Product:</label>
                     <select id="product_id"></select>
                     <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/variants')">Hämta varianter</button>
@@ -63,16 +65,16 @@ Auth::requireLogin();
             <div class="section" id="sec-create">
                 <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa ny</h2></div>
                 <div class="section-content">
-                    <label>SKU:</label>
-                    <input type="text" id="sku" placeholder="SKU-12345">
+                    <label>Artikelnummer:</label>
+                    <input type="text" id="item_number" placeholder="ART-12345-M-BLK">
                     <label>Storlek:</label>
                     <input type="text" id="size" placeholder="M">
-                    <label>Storlek-system:</label>
-                    <input type="text" id="size_system" placeholder="EU">
-                    <label>Färgnamn:</label>
-                    <input type="text" id="color_name" placeholder="Navy Blue">
-                    <label>Färgkod:</label>
-                    <select id="color_code">
+                    <label>Landskod (ISO):</label>
+                    <input type="text" id="size_country_code" placeholder="SE" maxlength="2">
+                    <label>Varumärkesfärg:</label>
+                    <input type="text" id="color_brand" placeholder="Navy Blue">
+                    <label>Standardfärg:</label>
+                    <select id="color_general">
                         <option value="">-- Välj --</option>
                         <option value="black">Black</option>
                         <option value="white">White</option>
@@ -91,6 +93,8 @@ Auth::requireLogin();
                         <option value="print">Print</option>
                         <option value="other">Other</option>
                     </select>
+                    <label>GTIN:</label>
+                    <input type="text" id="gtin" placeholder="1234567890123" maxlength="14">
                     <button class="btn-post" onclick="create()">Skapa</button>
                 </div>
             </div>
@@ -137,21 +141,24 @@ Auth::requireLogin();
         function getApiKey() {
             const apiKey = localStorage.getItem('dpp_api_key');
             if (!apiKey) {
-                document.getElementById('response').textContent = 'Välj ett företag på huvudsidan först!';
+                document.getElementById('response').textContent = 'Välj en tenant på huvudsidan först!';
                 document.getElementById('response').className = 'response-section error';
                 return null;
             }
             return apiKey;
         }
 
-        function showCompanyBanner() {
-            const companyName = localStorage.getItem('dpp_company_name');
-            const banner = document.getElementById('company_banner');
-            if (companyName) {
-                banner.textContent = 'Testar som: ' + companyName;
+        function showTenantBanner() {
+            const tenantName = localStorage.getItem('dpp_tenant_name');
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const banner = document.getElementById('tenant_banner');
+            if (tenantName && tenantType) {
+                const typeLabel = tenantType === 'brand' ? 'Brand' : 'Supplier';
+                banner.textContent = 'Testar som ' + typeLabel + ': ' + tenantName;
                 banner.style.display = 'inline-block';
+                banner.style.background = tenantType === 'brand' ? 'rgba(123,31,162,0.5)' : 'rgba(21,101,192,0.5)';
             } else {
-                banner.textContent = 'Inget företag valt - välj på huvudsidan';
+                banner.textContent = 'Ingen tenant vald - välj på huvudsidan';
                 banner.style.background = 'rgba(255,0,0,0.3)';
             }
         }
@@ -187,7 +194,10 @@ Auth::requireLogin();
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const res = await fetch('/api/brands', {
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const tenantId = localStorage.getItem('dpp_tenant_id');
+
+            const res = await fetch('/api/brands/all', {
                 headers: { 'X-API-Key': apiKey }
             });
             const json = await res.json();
@@ -195,8 +205,14 @@ Auth::requireLogin();
             select.innerHTML = '<option value="">-- Välj brand --</option>';
             if (json.data) {
                 json.data.forEach(b => {
-                    select.innerHTML += `<option value="${b.id}">${b.id}: ${b.brand_name}</option>`;
+                    const selected = (tenantType === 'brand' && b.id == tenantId) ? ' selected' : '';
+                    select.innerHTML += `<option value="${b.id}"${selected}>${b.id}: ${b.brand_name}</option>`;
                 });
+                // Hide brand dropdown if tenant is a brand (only one option)
+                if (tenantType === 'brand' && tenantId) {
+                    document.getElementById('brand_wrapper').style.display = 'none';
+                    loadProducts();
+                }
             }
         }
 
@@ -237,7 +253,7 @@ Auth::requireLogin();
                 const json = await res.json();
                 if (json.data) {
                     json.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.sku} (${v.size || '-'} / ${v.color_name || '-'})</option>`;
+                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.item_number || v.gtin || '-'} (${v.size || '-'} / ${v.color_brand || '-'})</option>`;
                     });
                 }
             }
@@ -252,16 +268,17 @@ Auth::requireLogin();
         document.getElementById('brand_id').addEventListener('change', loadProducts);
         document.getElementById('product_id').addEventListener('change', loadVariants);
 
-        showCompanyBanner();
+        showTenantBanner();
         loadAll();
 
         function create() {
             api('POST', '/api/products/' + document.getElementById('product_id').value + '/variants', {
-                sku: document.getElementById('sku').value,
+                item_number: document.getElementById('item_number').value || null,
                 size: document.getElementById('size').value || null,
-                size_system: document.getElementById('size_system').value || null,
-                color_name: document.getElementById('color_name').value || null,
-                color_code: document.getElementById('color_code').value || null
+                size_country_code: document.getElementById('size_country_code').value || null,
+                color_brand: document.getElementById('color_brand').value || null,
+                color_general: document.getElementById('color_general').value || null,
+                gtin: document.getElementById('gtin').value || null
             }).then(() => loadVariants());
         }
     </script>

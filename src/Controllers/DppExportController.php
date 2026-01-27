@@ -1,23 +1,26 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\TenantContext;
 use App\Helpers\Response;
 
-class DppExportController extends TenantAwareController {
-
+/**
+ * DPP Export Controller - Generates Digital Product Passport data
+ * Only available to brands (not suppliers)
+ */
+class DppExportController extends TenantAwareController
+{
     /**
      * Preview complete DPP data for a product
      */
-    public function preview(array $params): void {
-        // DPP export is brand-only
+    public function preview(array $params): void
+    {
         $this->requireBrand();
 
-        $productId = $params['id'];
+        $productId = (int) $params['id'];
 
-        // Verify product exists and belongs to this brand
         if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
+            return;
         }
 
         $dpp = [
@@ -37,15 +40,15 @@ class DppExportController extends TenantAwareController {
     /**
      * Validate DPP data completeness
      */
-    public function validate(array $params): void {
-        // DPP export is brand-only
+    public function validate(array $params): void
+    {
         $this->requireBrand();
 
-        $productId = $params['id'];
+        $productId = (int) $params['id'];
 
-        // Verify product exists and belongs to this brand
         if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
+            return;
         }
 
         $errors = [];
@@ -105,23 +108,23 @@ class DppExportController extends TenantAwareController {
     }
 
     /**
-     * Export DPP in Trace4Value format
+     * Export DPP in structured format
      */
-    public function export(array $params): void {
-        // DPP export is brand-only
+    public function export(array $params): void
+    {
         $this->requireBrand();
 
-        $productId = $params['id'];
+        $productId = (int) $params['id'];
 
-        // Verify product exists and belongs to this brand
         if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
+            return;
         }
 
-        $dpp = $this->buildTrace4ValueDpp($productId);
+        $dpp = $this->buildDppExport($productId);
 
         Response::success([
-            'format' => 'Trace4Value',
+            'format' => 'DPP',
             'version' => '1.0',
             'exported_at' => date('c'),
             'dpp' => $dpp
@@ -130,51 +133,48 @@ class DppExportController extends TenantAwareController {
 
     // ========== Helper Methods ==========
 
-    private function getBrandInfo(int|string $productId): array {
+    private function getBrandInfo(int $productId): array
+    {
         $stmt = $this->db->prepare(
-            'SELECT b.brand_name, b.brand_logo_url, b.brand_website, b.brand_description,
-                    c.name as company_name, c.org_number
+            'SELECT b.brand_name, b.logo_url, b.sub_brand, b.parent_company,
+                    b.trader, b.trader_location, b.lei, b.gs1_company_prefix
              FROM products p
-             LEFT JOIN brands b ON p.brand_id = b.id
-             LEFT JOIN companies c ON b.company_id = c.id
+             JOIN brands b ON p.brand_id = b.id
              WHERE p.id = ?'
         );
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: [];
     }
 
-    private function getProductInfo(int|string $productId): array {
-        $stmt = $this->db->prepare(
-            'SELECT p.*, GROUP_CONCAT(DISTINCT pv.sku) as skus
-             FROM products p
-             LEFT JOIN product_variants pv ON pv.product_id = p.id
-             WHERE p.id = ?
-             GROUP BY p.id'
-        );
+    private function getProductInfo(int $productId): array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM products WHERE id = ?');
         $stmt->execute([$productId]);
         $product = $stmt->fetch() ?: [];
 
         // Get variants
-        $stmt = $this->db->prepare(
-            'SELECT sku, size, size_system, color_name, color_code
-             FROM product_variants WHERE product_id = ?'
-        );
-        $stmt->execute([$productId]);
-        $product['variants'] = $stmt->fetchAll();
+        if ($product) {
+            $stmt = $this->db->prepare(
+                'SELECT id, item_number, gtin, size, size_country_code, color_brand, color_general
+                 FROM product_variants WHERE product_id = ? AND _is_active = TRUE'
+            );
+            $stmt->execute([$productId]);
+            $product['variants'] = $stmt->fetchAll();
+        }
 
         return $product;
     }
 
-    private function getMaterialInfo(int|string $productId): array {
+    private function getMaterialInfo(int $productId): array
+    {
         // Get materials linked via batches
         $stmt = $this->db->prepare(
             'SELECT DISTINCT fm.*, s.supplier_name, s.supplier_location
              FROM factory_materials fm
-             LEFT JOIN suppliers s ON fm.supplier_id = s.id
-             INNER JOIN batch_materials bm ON bm.factory_material_id = fm.id
-             INNER JOIN batches b ON b.id = bm.batch_id
-             INNER JOIN product_variants pv ON pv.id = b.product_variant_id
-             WHERE pv.product_id = ?'
+             JOIN suppliers s ON fm.supplier_id = s.id
+             JOIN batch_materials bm ON bm.factory_material_id = fm.id
+             JOIN batches b ON b.id = bm.batch_id
+             WHERE b.product_id = ?'
         );
         $stmt->execute([$productId]);
         $materials = $stmt->fetchAll();
@@ -182,14 +182,15 @@ class DppExportController extends TenantAwareController {
         // Enrich each material with compositions and certifications
         foreach ($materials as &$material) {
             $stmt = $this->db->prepare(
-                'SELECT fiber_type, percentage, fiber_source, is_recycled
+                'SELECT content_name, content_value, content_source,
+                        recycled, recycled_percentage, recycled_input_source
                  FROM factory_material_compositions WHERE factory_material_id = ?'
             );
             $stmt->execute([$material['id']]);
             $material['compositions'] = $stmt->fetchAll();
 
             $stmt = $this->db->prepare(
-                'SELECT certification_type, certification_other, certificate_number, valid_until
+                'SELECT certification, certification_id, valid_until
                  FROM factory_material_certifications WHERE factory_material_id = ?'
             );
             $stmt->execute([$material['id']]);
@@ -199,70 +200,89 @@ class DppExportController extends TenantAwareController {
         return $materials;
     }
 
-    private function getSupplyChainInfo(int|string $productId): array {
-        // Get supply chain from materials
+    private function getSupplyChainInfo(int $productId): array
+    {
+        // Get supply chain from materials (raw material traceability)
         $stmt = $this->db->prepare(
-            'SELECT DISTINCT fmsc.*
+            'SELECT DISTINCT fmsc.*, fm.material_name
              FROM factory_material_supply_chain fmsc
-             INNER JOIN factory_materials fm ON fm.id = fmsc.factory_material_id
-             INNER JOIN batch_materials bm ON bm.factory_material_id = fm.id
-             INNER JOIN batches b ON b.id = bm.batch_id
-             INNER JOIN product_variants pv ON pv.id = b.product_variant_id
-             WHERE pv.product_id = ?
-             ORDER BY fmsc.process_stage'
+             JOIN factory_materials fm ON fm.id = fmsc.factory_material_id
+             JOIN batch_materials bm ON bm.factory_material_id = fm.id
+             JOIN batches b ON b.id = bm.batch_id
+             WHERE b.product_id = ?
+             ORDER BY fmsc.sequence'
         );
         $stmt->execute([$productId]);
         $materialSupplyChain = $stmt->fetchAll();
 
-        // Get suppliers from batches
+        // Get raw material suppliers
         $stmt = $this->db->prepare(
-            'SELECT DISTINCT s.*, bs.production_stage
+            'SELECT DISTINCT s.supplier_name, s.supplier_location,
+                    s.facility_registry, s.facility_identifier,
+                    s.country_of_origin_confection, s.country_of_origin_dyeing, s.country_of_origin_weaving
              FROM suppliers s
-             INNER JOIN batch_suppliers bs ON bs.supplier_id = s.id
-             INNER JOIN batches b ON b.id = bs.batch_id
-             INNER JOIN product_variants pv ON pv.id = b.product_variant_id
-             WHERE pv.product_id = ?
-             ORDER BY bs.production_stage'
+             JOIN factory_materials fm ON fm.supplier_id = s.id
+             JOIN batch_materials bm ON bm.factory_material_id = fm.id
+             JOIN batches b ON b.id = bm.batch_id
+             WHERE b.product_id = ?'
         );
         $stmt->execute([$productId]);
-        $batchSuppliers = $stmt->fetchAll();
+        $materialSuppliers = $stmt->fetchAll();
+
+        // Get confection/production suppliers (directly from batches)
+        $stmt = $this->db->prepare(
+            'SELECT DISTINCT s.supplier_name, s.supplier_location,
+                    s.facility_registry, s.facility_identifier,
+                    s.country_of_origin_confection, s.country_of_origin_dyeing, s.country_of_origin_weaving
+             FROM suppliers s
+             JOIN batches b ON b.supplier_id = s.id
+             WHERE b.product_id = ?'
+        );
+        $stmt->execute([$productId]);
+        $confectionSuppliers = $stmt->fetchAll();
 
         return [
             'material_supply_chain' => $materialSupplyChain,
-            'production_suppliers' => $batchSuppliers
+            'material_suppliers' => $materialSuppliers,
+            'confection_suppliers' => $confectionSuppliers
         ];
     }
 
-    private function getCareInfo(int|string $productId): ?array {
+    private function getCareInfo(int $productId): ?array
+    {
         $stmt = $this->db->prepare('SELECT * FROM care_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getComplianceInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM compliance_information WHERE product_id = ?');
+    private function getComplianceInfo(int $productId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM compliance_info WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getCircularityInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM circularity_information WHERE product_id = ?');
+    private function getCircularityInfo(int $productId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM circularity_info WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getSustainabilityInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM sustainability_information WHERE product_id = ?');
+    private function getSustainabilityInfo(int $productId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM sustainability_info WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function calculateCompleteness(int|string $productId): array {
+    private function calculateCompleteness(int $productId): array
+    {
         $sections = [
             'brand' => !empty($this->getBrandInfo($productId)['brand_name']),
             'product' => !empty($this->getProductInfo($productId)['product_name']),
             'materials' => !empty($this->getMaterialInfo($productId)),
-            'supply_chain' => !empty($this->getSupplyChainInfo($productId)['material_supply_chain']),
+            'supply_chain' => !empty($this->getSupplyChainInfo($productId)['material_supply_chain']) || !empty($this->getSupplyChainInfo($productId)['confection_suppliers']),
             'care' => !empty($this->getCareInfo($productId)),
             'compliance' => !empty($this->getComplianceInfo($productId)),
             'circularity' => !empty($this->getCircularityInfo($productId)),
@@ -278,7 +298,8 @@ class DppExportController extends TenantAwareController {
         ];
     }
 
-    private function buildTrace4ValueDpp(int|string $productId): array {
+    private function buildDppExport(int $productId): array
+    {
         $brandInfo = $this->getBrandInfo($productId);
         $productInfo = $this->getProductInfo($productId);
         $materials = $this->getMaterialInfo($productId);
@@ -293,10 +314,13 @@ class DppExportController extends TenantAwareController {
         foreach ($materials as $material) {
             foreach ($material['compositions'] ?? [] as $comp) {
                 $compositions[] = [
-                    'fiberType' => $comp['fiber_type'],
-                    'percentage' => (float)$comp['percentage'],
-                    'source' => $comp['fiber_source'],
-                    'isRecycled' => (bool)$comp['is_recycled']
+                    'materialName' => $material['material_name'],
+                    'contentName' => $comp['content_name'],
+                    'percentage' => (float) $comp['content_value'],
+                    'source' => $comp['content_source'],
+                    'isRecycled' => (bool) $comp['recycled'],
+                    'recycledPercentage' => $comp['recycled_percentage'] ? (float) $comp['recycled_percentage'] : null,
+                    'recycledSource' => $comp['recycled_input_source']
                 ];
             }
         }
@@ -306,9 +330,9 @@ class DppExportController extends TenantAwareController {
         foreach ($materials as $material) {
             foreach ($material['certifications'] ?? [] as $cert) {
                 $certifications[] = [
-                    'type' => $cert['certification_type'],
-                    'other' => $cert['certification_other'],
-                    'number' => $cert['certificate_number'],
+                    'materialName' => $material['material_name'],
+                    'certification' => $cert['certification'],
+                    'certificationId' => $cert['certification_id'],
                     'validUntil' => $cert['valid_until']
                 ];
             }
@@ -317,21 +341,23 @@ class DppExportController extends TenantAwareController {
         return [
             'brandInformation' => [
                 'brandName' => $brandInfo['brand_name'] ?? null,
-                'brandLogo' => $brandInfo['brand_logo_url'] ?? null,
-                'brandWebsite' => $brandInfo['brand_website'] ?? null,
-                'companyName' => $brandInfo['company_name'] ?? null,
-                'organizationNumber' => $brandInfo['org_number'] ?? null,
+                'logoUrl' => $brandInfo['logo_url'] ?? null,
+                'subBrand' => $brandInfo['sub_brand'] ?? null,
+                'parentCompany' => $brandInfo['parent_company'] ?? null,
+                'trader' => $brandInfo['trader'] ?? null,
+                'traderLocation' => $brandInfo['trader_location'] ?? null,
+                'lei' => $brandInfo['lei'] ?? null,
+                'gs1CompanyPrefix' => $brandInfo['gs1_company_prefix'] ?? null,
             ],
             'productInformation' => [
                 'productName' => $productInfo['product_name'] ?? null,
-                'productDescription' => $productInfo['product_description'] ?? null,
-                'productCategory' => $productInfo['product_category'] ?? null,
-                'productType' => $productInfo['product_type'] ?? null,
-                'gender' => $productInfo['product_gender'] ?? null,
-                'styleNumber' => $productInfo['style_number'] ?? null,
-                'season' => $productInfo['season'] ?? null,
+                'productDescription' => $productInfo['description'] ?? null,
+                'productCategory' => $productInfo['category'] ?? null,
+                // Trace4Value field names for DPP export
+                'product_id_system' => $productInfo['gtin_type'] ?? null, // 300,00
+                'product_id_value' => $productInfo['gtin'] ?? null,       // 300,10
                 'countryOfOrigin' => $productInfo['country_of_origin'] ?? null,
-                'imageUrl' => $productInfo['product_image_url'] ?? null,
+                'imageUrl' => $productInfo['image_url'] ?? null,
                 'variants' => $productInfo['variants'] ?? [],
             ],
             'materialInformation' => [
@@ -340,11 +366,14 @@ class DppExportController extends TenantAwareController {
             ],
             'supplyChainInformation' => [
                 'steps' => array_map(fn($step) => [
-                    'processStage' => $step['process_stage'],
-                    'supplierName' => $step['supplier_name'],
+                    'sequence' => $step['sequence'],
+                    'processStep' => $step['process_step'],
                     'country' => $step['country'],
-                    'facilityId' => $step['facility_id'],
+                    'facilityName' => $step['facility_name'],
+                    'facilityIdentifier' => $step['facility_identifier'],
                 ], $supplyChain['material_supply_chain'] ?? []),
+                'materialSuppliers' => $supplyChain['material_suppliers'] ?? [],
+                'confectionSuppliers' => $supplyChain['confection_suppliers'] ?? [],
             ],
             'careInformation' => $care ? [
                 'careImageUrl' => $care['care_image_url'] ?? null,
@@ -352,10 +381,12 @@ class DppExportController extends TenantAwareController {
                 'safetyInformation' => $care['safety_information'] ?? null,
             ] : null,
             'complianceInformation' => $compliance ? [
-                'containsSvhc' => (bool)($compliance['contains_svhc'] ?? false),
-                'svhcDetails' => $compliance['svhc_details'] ?? null,
-                'scan4chemLink' => $compliance['scan4chem_link'] ?? null,
-                'shedsMicrofibers' => $compliance['sheds_microfibers'] ?? null,
+                'harmfulSubstances' => $compliance['harmful_substances'] ?? null,
+                'harmfulSubstancesInfo' => $compliance['harmful_substances_info'] ?? null,
+                'certifications' => $compliance['certifications'] ?? null,
+                'chemicalComplianceStandard' => $compliance['chemical_compliance_standard'] ?? null,
+                'chemicalComplianceLink' => $compliance['chemical_compliance_link'] ?? null,
+                'microfibers' => $compliance['microfibers'] ?? null,
                 'traceabilityProvider' => $compliance['traceability_provider'] ?? null,
             ] : null,
             'circularityInformation' => $circularity ? [
@@ -363,11 +394,15 @@ class DppExportController extends TenantAwareController {
                 'recyclability' => $circularity['recyclability'] ?? null,
                 'takeBackInstructions' => $circularity['take_back_instructions'] ?? null,
                 'recyclingInstructions' => $circularity['recycling_instructions'] ?? null,
+                'disassemblyInstructionsSorters' => $circularity['disassembly_instructions_sorters'] ?? null,
+                'disassemblyInstructionsUser' => $circularity['disassembly_instructions_user'] ?? null,
+                'circularDesignStrategy' => $circularity['circular_design_strategy'] ?? null,
+                'circularDesignDescription' => $circularity['circular_design_description'] ?? null,
                 'repairInstructions' => $circularity['repair_instructions'] ?? null,
             ] : null,
             'sustainabilityInformation' => $sustainability ? [
                 'brandStatement' => $sustainability['brand_statement'] ?? null,
-                'brandStatementLink' => $sustainability['brand_statement_link'] ?? null,
+                'statementLink' => $sustainability['statement_link'] ?? null,
                 'environmentalFootprint' => $sustainability['environmental_footprint'] ?? null,
             ] : null,
         ];

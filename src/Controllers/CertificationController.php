@@ -30,7 +30,7 @@ class CertificationController extends TenantAwareController {
      */
     private function canReadCertification(int|string $certificationId): bool {
         $stmt = $this->db->prepare(
-            'SELECT product_id FROM certifications WHERE id = ?'
+            'SELECT product_id FROM product_certifications WHERE id = ?'
         );
         $stmt->execute([$certificationId]);
         $cert = $stmt->fetch();
@@ -48,7 +48,7 @@ class CertificationController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'SELECT * FROM certifications WHERE product_id = ? ORDER BY certification_name'
+            'SELECT * FROM product_certifications WHERE product_id = ? ORDER BY certification_name'
         );
         $stmt->execute([$params['productId']]);
         Response::success($stmt->fetchAll());
@@ -59,7 +59,7 @@ class CertificationController extends TenantAwareController {
             Response::error('Certification not found', 404);
         }
 
-        $stmt = $this->db->prepare('SELECT * FROM certifications WHERE id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM product_certifications WHERE id = ?');
         $stmt->execute([$params['id']]);
         Response::success($stmt->fetch());
     }
@@ -80,7 +80,7 @@ class CertificationController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO certifications (
+            'INSERT INTO product_certifications (
                 product_id, certification_name, certification_other,
                 validation_document_url, valid_until
              ) VALUES (?, ?, ?, ?, ?)'
@@ -106,7 +106,7 @@ class CertificationController extends TenantAwareController {
 
         // Verify certification belongs to a product owned by this brand
         $stmt = $this->db->prepare(
-            'SELECT c.id FROM certifications c
+            'SELECT c.id FROM product_certifications c
              JOIN products p ON c.product_id = p.id
              WHERE c.id = ? AND p.brand_id = ?'
         );
@@ -116,7 +116,7 @@ class CertificationController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'UPDATE certifications SET
+            'UPDATE product_certifications SET
                 certification_name = COALESCE(?, certification_name),
                 certification_other = COALESCE(?, certification_other),
                 validation_document_url = COALESCE(?, validation_document_url),
@@ -142,7 +142,7 @@ class CertificationController extends TenantAwareController {
 
         // Verify certification belongs to a product owned by this brand
         $stmt = $this->db->prepare(
-            'SELECT c.id FROM certifications c
+            'SELECT c.id FROM product_certifications c
              JOIN products p ON c.product_id = p.id
              WHERE c.id = ? AND p.brand_id = ?'
         );
@@ -151,7 +151,7 @@ class CertificationController extends TenantAwareController {
             Response::error('Certification not found', 404);
         }
 
-        $stmt = $this->db->prepare('DELETE FROM certifications WHERE id = ?');
+        $stmt = $this->db->prepare('DELETE FROM product_certifications WHERE id = ?');
         $stmt->execute([$params['id']]);
 
         Response::success(['deleted' => (int)$params['id']]);

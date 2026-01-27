@@ -69,14 +69,8 @@ Auth::requireLogin();
                         <option value="other">Other</option>
                     </select>
 
-                    <label>Internal Code <span>Internt artikelnummer (valfritt)</span></label>
-                    <input type="text" id="_internal_code">
-
-                    <label>Vikt per meter <span>Gram per löpmeter</span></label>
-                    <input type="number" step="0.0001" id="net_weight_per_meter">
-
-                    <label>Bredd <span>Centimeter</span></label>
-                    <input type="number" id="width_cm">
+                    <label>Beskrivning <span>Beskrivning av materialet (valfritt)</span></label>
+                    <input type="text" id="description">
 
                     <div id="create-buttons">
                         <button class="btn-post" onclick="createMaterial()">Skapa nytt material</button>
@@ -93,19 +87,16 @@ Auth::requireLogin();
                     <div id="composition-form">
                         <h3>Lägg till fiber</h3>
                         <label>Fibertyp <span>T.ex. Cotton, Polyester</span></label>
-                        <input type="text" id="fiber_type">
+                        <input type="text" id="content_name">
 
                         <label>Procent <span>Andel av totalen</span></label>
-                        <input type="number" step="0.01" id="percentage">
+                        <input type="number" step="0.01" id="content_value">
 
                         <label>Fiberkälla <span>Ursprungsland (valfritt)</span></label>
-                        <input type="text" id="fiber_source">
-
-                        <label>Varumärke <span>T.ex. Supima (valfritt)</span></label>
-                        <input type="text" id="material_trademark">
+                        <input type="text" id="content_source">
 
                         <label>Återvunnen <span>Är fibern återvunnen?</span></label>
-                        <select id="is_recycled">
+                        <select id="recycled">
                             <option value="0">Nej</option>
                             <option value="1">Ja</option>
                         </select>
@@ -114,7 +105,7 @@ Auth::requireLogin();
                         <input type="number" step="0.01" id="recycled_percentage">
 
                         <label>Återvinningskälla <span>Typ av återvunnet material</span></label>
-                        <select id="recycled_source">
+                        <select id="recycled_input_source">
                             <option value="">-- Välj --</option>
                             <option value="pre_consumer">Pre-consumer</option>
                             <option value="post_consumer">Post-consumer</option>
@@ -134,39 +125,14 @@ Auth::requireLogin();
 
                     <div id="cert-form">
                         <h3>Lägg till certifiering</h3>
-                        <label>Typ <span>Certifieringsstandard</span></label>
-                        <select id="cert_type">
-                            <option value="GOTS">GOTS</option>
-                            <option value="GRS">GRS</option>
-                            <option value="RCS">RCS</option>
-                            <option value="RWS">RWS</option>
-                            <option value="Oeko_Tex">Oeko-Tex</option>
-                            <option value="BSCI">BSCI</option>
-                            <option value="FSC">FSC</option>
-                            <option value="other">Other</option>
-                        </select>
+                        <label>Certifiering <span>T.ex. GOTS, GRS, Oeko-Tex</span></label>
+                        <input type="text" id="certification">
 
-                        <label>Annan typ <span>Om "other" valdes</span></label>
-                        <input type="text" id="cert_other">
-
-                        <label>Certifikatnummer <span>Unikt ID för certifikatet</span></label>
-                        <input type="text" id="cert_number">
-
-                        <label>Giltig från</label>
-                        <input type="date" id="cert_valid_from">
+                        <label>Certifikat-ID <span>Unikt ID för certifikatet</span></label>
+                        <input type="text" id="certification_id">
 
                         <label>Giltig till</label>
                         <input type="date" id="cert_valid_until">
-
-                        <label>Scope <span>Vad certifieringen gäller</span></label>
-                        <select id="cert_scope">
-                            <option value="material">Material</option>
-                            <option value="product">Product</option>
-                            <option value="facility">Facility</option>
-                        </select>
-
-                        <label>Dokument-URL <span>Länk till certifikat</span></label>
-                        <input type="text" id="cert_document_url">
 
                         <button class="btn-post" onclick="addCertification()">Lägg till certifiering</button>
                     </div>
@@ -181,7 +147,7 @@ Auth::requireLogin();
                     <div id="supply-form">
                         <h3>Lägg till steg</h3>
                         <label>Process-steg <span>Produktionssteg</span></label>
-                        <select id="process_stage">
+                        <select id="process_step">
                             <option value="fiber">Fiber</option>
                             <option value="spinning">Spinning</option>
                             <option value="weaving_knitting">Weaving/Knitting</option>
@@ -189,14 +155,14 @@ Auth::requireLogin();
                             <option value="finishing">Finishing</option>
                         </select>
 
-                        <label>Leverantörsnamn <span>Namn på underleverantör</span></label>
-                        <input type="text" id="sc_supplier_name">
-
                         <label>Land <span>2 bokstäver (ISO)</span></label>
                         <input type="text" id="sc_country" maxlength="2">
 
-                        <label>Facility ID <span>Anläggnings-ID</span></label>
-                        <input type="text" id="sc_facility_id">
+                        <label>Facility Name <span>Namn på anläggning</span></label>
+                        <input type="text" id="facility_name">
+
+                        <label>Facility Identifier <span>Anläggnings-ID</span></label>
+                        <input type="text" id="facility_identifier">
 
                         <button class="btn-post" onclick="addSupplyChain()">Lägg till steg</button>
                     </div>
@@ -342,9 +308,7 @@ Auth::requireLogin();
                 const m = json.data;
                 document.getElementById('material_name').value = m.material_name || '';
                 document.getElementById('material_type').value = m.material_type || 'textile';
-                document.getElementById('_internal_code').value = m._internal_code || '';
-                document.getElementById('net_weight_per_meter').value = m.net_weight_per_meter || '';
-                document.getElementById('width_cm').value = m.width_cm || '';
+                document.getElementById('description').value = m.description || '';
                 currentSupplierId = m.supplier_id;
             }
         }
@@ -352,9 +316,7 @@ Auth::requireLogin();
         function clearForm() {
             document.getElementById('material_name').value = '';
             document.getElementById('material_type').value = 'textile';
-            document.getElementById('_internal_code').value = '';
-            document.getElementById('net_weight_per_meter').value = '';
-            document.getElementById('width_cm').value = '';
+            document.getElementById('description').value = '';
         }
 
         function getMaterialId() {
@@ -366,9 +328,7 @@ Auth::requireLogin();
             const json = await api('POST', '/api/materials', {
                 material_name: document.getElementById('material_name').value,
                 material_type: document.getElementById('material_type').value,
-                _internal_code: document.getElementById('_internal_code').value || null,
-                net_weight_per_meter: parseFloat(document.getElementById('net_weight_per_meter').value) || null,
-                width_cm: parseInt(document.getElementById('width_cm').value) || null
+                description: document.getElementById('description').value || null
             });
             if (json && !json.error) loadMaterials();
         }
@@ -401,13 +361,12 @@ Auth::requireLogin();
             const id = getMaterialId();
             if (!id) return;
             api('POST', '/api/materials/' + id + '/compositions', {
-                fiber_type: document.getElementById('fiber_type').value,
-                percentage: parseFloat(document.getElementById('percentage').value),
-                fiber_source: document.getElementById('fiber_source').value || null,
-                material_trademark: document.getElementById('material_trademark').value || null,
-                is_recycled: document.getElementById('is_recycled').value === '1',
+                content_name: document.getElementById('content_name').value,
+                content_value: parseFloat(document.getElementById('content_value').value),
+                content_source: document.getElementById('content_source').value || null,
+                recycled: document.getElementById('recycled').value === '1',
                 recycled_percentage: parseFloat(document.getElementById('recycled_percentage').value) || null,
-                recycled_source: document.getElementById('recycled_source').value || null
+                recycled_input_source: document.getElementById('recycled_input_source').value || null
             });
         }
 
@@ -415,13 +374,9 @@ Auth::requireLogin();
             const id = getMaterialId();
             if (!id) return;
             api('POST', '/api/materials/' + id + '/certifications', {
-                certification_type: document.getElementById('cert_type').value,
-                certification_other: document.getElementById('cert_other').value || null,
-                scope: document.getElementById('cert_scope').value,
-                certificate_number: document.getElementById('cert_number').value || null,
-                valid_from: document.getElementById('cert_valid_from').value || null,
-                valid_until: document.getElementById('cert_valid_until').value || null,
-                document_url: document.getElementById('cert_document_url').value || null
+                certification: document.getElementById('certification').value,
+                certification_id: document.getElementById('certification_id').value || null,
+                valid_until: document.getElementById('cert_valid_until').value || null
             });
         }
 
@@ -429,10 +384,10 @@ Auth::requireLogin();
             const id = getMaterialId();
             if (!id) return;
             api('POST', '/api/materials/' + id + '/supply-chain', {
-                process_stage: document.getElementById('process_stage').value,
-                supplier_name: document.getElementById('sc_supplier_name').value || null,
+                process_step: document.getElementById('process_step').value,
                 country: document.getElementById('sc_country').value || null,
-                facility_id: document.getElementById('sc_facility_id').value || null
+                facility_name: document.getElementById('facility_name').value || null,
+                facility_identifier: document.getElementById('facility_identifier').value || null
             });
         }
 

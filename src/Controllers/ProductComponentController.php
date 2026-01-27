@@ -5,6 +5,11 @@ use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
+/**
+ * Product Component Controller
+ * Handles product material composition (body fabric, trim, lining, etc.)
+ * Components have their material info stored inline (not linked to separate table)
+ */
 class ProductComponentController extends TenantAwareController {
 
     /**
@@ -68,7 +73,7 @@ class ProductComponentController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'SELECT * FROM product_components WHERE product_id = ? ORDER BY component_type'
+            'SELECT * FROM product_components WHERE product_id = ? ORDER BY component'
         );
         $stmt->execute([$params['productId']]);
         Response::success($stmt->fetchAll());
@@ -81,12 +86,7 @@ class ProductComponentController extends TenantAwareController {
 
         $stmt = $this->db->prepare('SELECT * FROM product_components WHERE id = ?');
         $stmt->execute([$params['id']]);
-        $component = $stmt->fetch();
-
-        // Include materials
-        $component['materials'] = $this->getComponentMaterials($params['id']);
-
-        Response::success($component);
+        Response::success($stmt->fetch());
     }
 
     public function create(array $params): void {
@@ -95,14 +95,8 @@ class ProductComponentController extends TenantAwareController {
 
         $data = Validator::getJsonBody();
 
-        if ($error = Validator::required($data, ['component_type'])) {
+        if ($error = Validator::required($data, ['component'])) {
             Response::error($error);
-        }
-
-        // Validate component_type enum
-        $validTypes = ['body_fabric', 'lining', 'trim', 'padding', 'other'];
-        if (!in_array($data['component_type'], $validTypes)) {
-            Response::error('Invalid component_type. Must be one of: ' . implode(', ', $validTypes));
         }
 
         // Verify product exists and belongs to this brand
@@ -111,13 +105,43 @@ class ProductComponentController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO product_components (product_id, component_type, component_weight)
-             VALUES (?, ?, ?)'
+            'INSERT INTO product_components (
+                product_id, component, material, content_name, content_value, content_source,
+                material_trademarks, content_name_other, trim_type, component_weight,
+                recycled, recycled_percentage, recycled_input_source,
+                leather_species, leather_grade, leather_species_other, leather_pattern,
+                leather_thickness, leather_max, leather_min,
+                sewing_thread_content, print_ink_type, dye_class, dye_class_standard,
+                finishes, pattern
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['productId'],
-            $data['component_type'],
-            $data['component_weight'] ?? null
+            $data['component'],
+            $data['material'] ?? null,
+            $data['content_name'] ?? null,
+            $data['content_value'] ?? null,
+            $data['content_source'] ?? null,
+            $data['material_trademarks'] ?? null,
+            $data['content_name_other'] ?? null,
+            $data['trim_type'] ?? null,
+            $data['component_weight'] ?? null,
+            $data['recycled'] ?? null,
+            $data['recycled_percentage'] ?? null,
+            $data['recycled_input_source'] ?? null,
+            $data['leather_species'] ?? null,
+            $data['leather_grade'] ?? null,
+            $data['leather_species_other'] ?? null,
+            $data['leather_pattern'] ?? null,
+            $data['leather_thickness'] ?? null,
+            $data['leather_max'] ?? null,
+            $data['leather_min'] ?? null,
+            $data['sewing_thread_content'] ?? null,
+            $data['print_ink_type'] ?? null,
+            $data['dye_class'] ?? null,
+            $data['dye_class_standard'] ?? null,
+            $data['finishes'] ?? null,
+            $data['pattern'] ?? null
         ]);
 
         $id = $this->db->lastInsertId();
@@ -134,23 +158,61 @@ class ProductComponentController extends TenantAwareController {
             Response::error('Component not found', 404);
         }
 
-        // Validate component_type if provided
-        if (isset($data['component_type'])) {
-            $validTypes = ['body_fabric', 'lining', 'trim', 'padding', 'other'];
-            if (!in_array($data['component_type'], $validTypes)) {
-                Response::error('Invalid component_type. Must be one of: ' . implode(', ', $validTypes));
-            }
-        }
-
         $stmt = $this->db->prepare(
             'UPDATE product_components SET
-                component_type = COALESCE(?, component_type),
-                component_weight = COALESCE(?, component_weight)
+                component = COALESCE(?, component),
+                material = COALESCE(?, material),
+                content_name = COALESCE(?, content_name),
+                content_value = COALESCE(?, content_value),
+                content_source = COALESCE(?, content_source),
+                material_trademarks = COALESCE(?, material_trademarks),
+                content_name_other = COALESCE(?, content_name_other),
+                trim_type = COALESCE(?, trim_type),
+                component_weight = COALESCE(?, component_weight),
+                recycled = COALESCE(?, recycled),
+                recycled_percentage = COALESCE(?, recycled_percentage),
+                recycled_input_source = COALESCE(?, recycled_input_source),
+                leather_species = COALESCE(?, leather_species),
+                leather_grade = COALESCE(?, leather_grade),
+                leather_species_other = COALESCE(?, leather_species_other),
+                leather_pattern = COALESCE(?, leather_pattern),
+                leather_thickness = COALESCE(?, leather_thickness),
+                leather_max = COALESCE(?, leather_max),
+                leather_min = COALESCE(?, leather_min),
+                sewing_thread_content = COALESCE(?, sewing_thread_content),
+                print_ink_type = COALESCE(?, print_ink_type),
+                dye_class = COALESCE(?, dye_class),
+                dye_class_standard = COALESCE(?, dye_class_standard),
+                finishes = COALESCE(?, finishes),
+                pattern = COALESCE(?, pattern)
              WHERE id = ?'
         );
         $stmt->execute([
-            $data['component_type'] ?? null,
+            $data['component'] ?? null,
+            $data['material'] ?? null,
+            $data['content_name'] ?? null,
+            $data['content_value'] ?? null,
+            $data['content_source'] ?? null,
+            $data['material_trademarks'] ?? null,
+            $data['content_name_other'] ?? null,
+            $data['trim_type'] ?? null,
             $data['component_weight'] ?? null,
+            $data['recycled'] ?? null,
+            $data['recycled_percentage'] ?? null,
+            $data['recycled_input_source'] ?? null,
+            $data['leather_species'] ?? null,
+            $data['leather_grade'] ?? null,
+            $data['leather_species_other'] ?? null,
+            $data['leather_pattern'] ?? null,
+            $data['leather_thickness'] ?? null,
+            $data['leather_max'] ?? null,
+            $data['leather_min'] ?? null,
+            $data['sewing_thread_content'] ?? null,
+            $data['print_ink_type'] ?? null,
+            $data['dye_class'] ?? null,
+            $data['dye_class_standard'] ?? null,
+            $data['finishes'] ?? null,
+            $data['pattern'] ?? null,
             $params['id']
         ]);
 
@@ -166,87 +228,6 @@ class ProductComponentController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare('DELETE FROM product_components WHERE id = ?');
-        $stmt->execute([$params['id']]);
-
-        Response::success(['deleted' => (int)$params['id']]);
-    }
-
-    // ========== Component Materials ==========
-
-    private function getComponentMaterials(int|string $componentId): array {
-        $stmt = $this->db->prepare(
-            'SELECT cm.*, fm.material_name, fm.material_type
-             FROM component_materials cm
-             LEFT JOIN factory_materials fm ON cm.factory_material_id = fm.id
-             WHERE cm.component_id = ?
-             ORDER BY cm.percentage DESC'
-        );
-        $stmt->execute([$componentId]);
-        return $stmt->fetchAll();
-    }
-
-    public function listMaterials(array $params): void {
-        if (!$this->canReadComponent($params['componentId'])) {
-            Response::error('Component not found', 404);
-        }
-
-        Response::success($this->getComponentMaterials($params['componentId']));
-    }
-
-    public function addMaterial(array $params): void {
-        // Write operations require brand authentication
-        $this->requireBrand();
-
-        $data = Validator::getJsonBody();
-
-        if ($error = Validator::required($data, ['factory_material_id', 'percentage'])) {
-            Response::error($error);
-        }
-
-        // Verify component exists and belongs to this brand
-        if (!$this->verifyComponentOwnership($params['componentId'])) {
-            Response::error('Component not found', 404);
-        }
-
-        // Verify material exists
-        $stmt = $this->db->prepare('SELECT id FROM factory_materials WHERE id = ?');
-        $stmt->execute([$data['factory_material_id']]);
-        if (!$stmt->fetch()) {
-            Response::error('Material not found', 404);
-        }
-
-        $stmt = $this->db->prepare(
-            'INSERT INTO component_materials (component_id, factory_material_id, percentage)
-             VALUES (?, ?, ?)'
-        );
-        $stmt->execute([
-            $params['componentId'],
-            $data['factory_material_id'],
-            $data['percentage']
-        ]);
-
-        Response::success(['id' => (int)$this->db->lastInsertId()], 201);
-    }
-
-    public function removeMaterial(array $params): void {
-        // Write operations require brand authentication
-        $this->requireBrand();
-
-        $brandId = TenantContext::getBrandId();
-
-        // Verify component material belongs to a component owned by this brand
-        $stmt = $this->db->prepare(
-            'SELECT cm.id FROM component_materials cm
-             JOIN product_components pc ON cm.component_id = pc.id
-             JOIN products p ON pc.product_id = p.id
-             WHERE cm.id = ? AND p.brand_id = ?'
-        );
-        $stmt->execute([$params['id'], $brandId]);
-        if (!$stmt->fetch()) {
-            Response::error('Component material not found', 404);
-        }
-
-        $stmt = $this->db->prepare('DELETE FROM component_materials WHERE id = ?');
         $stmt->execute([$params['id']]);
 
         Response::success(['deleted' => (int)$params['id']]);

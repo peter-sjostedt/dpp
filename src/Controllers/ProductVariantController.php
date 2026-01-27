@@ -65,27 +65,23 @@ class ProductVariantController extends TenantAwareController {
 
         if (TenantContext::isBrand()) {
             $brandId = TenantContext::getBrandId();
-            // Brands see variants that have batches with items, filtered on brand_id
+            // Brands see all variants for their product
             $stmt = $this->db->prepare(
-                'SELECT DISTINCT pv.*, p.product_name
+                'SELECT pv.*, p.product_name
                  FROM product_variants pv
                  LEFT JOIN products p ON pv.product_id = p.id
-                 JOIN batches b ON b.product_variant_id = pv.id
-                 JOIN items i ON i.batch_id = b.id
                  WHERE pv.product_id = ? AND p.brand_id = ? AND pv._is_active = TRUE
-                 ORDER BY pv.size, pv.color_name'
+                 ORDER BY pv.size, pv.color_brand'
             );
             $stmt->execute([$params['productId'], $brandId]);
         } else {
             // Suppliers see variants from brands they have relationship with
             $stmt = $this->db->prepare(
-                'SELECT DISTINCT pv.*, p.product_name
+                'SELECT pv.*, p.product_name
                  FROM product_variants pv
                  LEFT JOIN products p ON pv.product_id = p.id
-                 JOIN batches b ON b.product_variant_id = pv.id
-                 JOIN items i ON i.batch_id = b.id
                  WHERE pv.product_id = ? AND pv._is_active = TRUE
-                 ORDER BY pv.size, pv.color_name'
+                 ORDER BY pv.size, pv.color_brand'
             );
             $stmt->execute([$params['productId']]);
         }
@@ -114,35 +110,34 @@ class ProductVariantController extends TenantAwareController {
 
         $data = Validator::getJsonBody();
 
-        if ($error = Validator::required($data, ['sku'])) {
-            Response::error($error);
-        }
-
         // Verify product exists and belongs to this brand
         if (!$this->verifyProductOwnership($params['productId'])) {
             Response::error('Product not found', 404);
         }
 
-        // Check for duplicate sku
-        $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE sku = ?');
-        $stmt->execute([$data['sku']]);
-        if ($stmt->fetch()) {
-            Response::error('SKU already exists', 400);
+        // Check for duplicate gtin if provided
+        if (!empty($data['gtin'])) {
+            $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE gtin = ?');
+            $stmt->execute([$data['gtin']]);
+            if ($stmt->fetch()) {
+                Response::error('GTIN already exists', 400);
+            }
         }
 
         $stmt = $this->db->prepare(
             'INSERT INTO product_variants (
-                product_id, sku, size, size_system,
-                color_name, color_code, _is_active
-             ) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                product_id, item_number, size, size_country_code,
+                color_brand, color_general, gtin, _is_active
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['productId'],
-            $data['sku'],
+            $data['item_number'] ?? null,
             $data['size'] ?? null,
-            $data['size_system'] ?? null,
-            $data['color_name'] ?? null,
-            $data['color_code'] ?? null,
+            $data['size_country_code'] ?? null,
+            $data['color_brand'] ?? null,
+            $data['color_general'] ?? null,
+            $data['gtin'] ?? null,
             $data['_is_active'] ?? true
         ]);
 
@@ -161,31 +156,33 @@ class ProductVariantController extends TenantAwareController {
             Response::error('Variant not found', 404);
         }
 
-        // Check for duplicate sku if changing
-        if (isset($data['sku'])) {
-            $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE sku = ? AND id != ?');
-            $stmt->execute([$data['sku'], $params['id']]);
+        // Check for duplicate gtin if changing
+        if (!empty($data['gtin'])) {
+            $stmt = $this->db->prepare('SELECT id FROM product_variants WHERE gtin = ? AND id != ?');
+            $stmt->execute([$data['gtin'], $params['id']]);
             if ($stmt->fetch()) {
-                Response::error('SKU already exists', 400);
+                Response::error('GTIN already exists', 400);
             }
         }
 
         $stmt = $this->db->prepare(
             'UPDATE product_variants SET
-                sku = COALESCE(?, sku),
+                item_number = COALESCE(?, item_number),
                 size = COALESCE(?, size),
-                size_system = COALESCE(?, size_system),
-                color_name = COALESCE(?, color_name),
-                color_code = COALESCE(?, color_code),
+                size_country_code = COALESCE(?, size_country_code),
+                color_brand = COALESCE(?, color_brand),
+                color_general = COALESCE(?, color_general),
+                gtin = COALESCE(?, gtin),
                 _is_active = COALESCE(?, _is_active)
              WHERE id = ?'
         );
         $stmt->execute([
-            $data['sku'] ?? null,
+            $data['item_number'] ?? null,
             $data['size'] ?? null,
-            $data['size_system'] ?? null,
-            $data['color_name'] ?? null,
-            $data['color_code'] ?? null,
+            $data['size_country_code'] ?? null,
+            $data['color_brand'] ?? null,
+            $data['color_general'] ?? null,
+            $data['gtin'] ?? null,
             $data['_is_active'] ?? null,
             $params['id']
         ]);

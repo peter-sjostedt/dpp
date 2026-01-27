@@ -20,8 +20,7 @@ class BrandController extends TenantAwareController
                 'SELECT DISTINCT br.*
                  FROM brands br
                  JOIN products p ON p.brand_id = br.id
-                 JOIN product_variants pv ON pv.product_id = p.id
-                 JOIN batches b ON b.product_variant_id = pv.id
+                 JOIN batches b ON b.product_id = p.id
                  JOIN items i ON i.batch_id = b.id
                  WHERE br.id = ?
                  ORDER BY br.brand_name'
@@ -140,8 +139,8 @@ class BrandController extends TenantAwareController
                 logo_url = COALESCE(?, logo_url),
                 sub_brand = COALESCE(?, sub_brand),
                 parent_company = COALESCE(?, parent_company),
-                trader_name = COALESCE(?, trader_name),
-                trader_address = COALESCE(?, trader_address),
+                trader = COALESCE(?, trader),
+                trader_location = COALESCE(?, trader_location),
                 lei = COALESCE(?, lei),
                 gs1_company_prefix = COALESCE(?, gs1_company_prefix)
              WHERE id = ?'
@@ -151,8 +150,8 @@ class BrandController extends TenantAwareController
             $data['logo_url'] ?? null,
             $data['sub_brand'] ?? null,
             $data['parent_company'] ?? null,
-            $data['trader_name'] ?? null,
-            $data['trader_address'] ?? null,
+            $data['trader'] ?? null,
+            $data['trader_location'] ?? null,
             $data['lei'] ?? null,
             $data['gs1_company_prefix'] ?? null,
             $id

@@ -138,7 +138,7 @@ abstract class TenantAwareController
     }
 
     /**
-     * Verify item belongs to current brand
+     * Verify item belongs to current brand (via batch)
      */
     protected function verifyItemOwnership(int|string $itemId): bool
     {
@@ -146,7 +146,11 @@ abstract class TenantAwareController
             return false;
         }
 
-        $stmt = $this->db->prepare('SELECT id FROM items WHERE id = ? AND brand_id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT i.id FROM items i
+             JOIN batches b ON i.batch_id = b.id
+             WHERE i.id = ? AND b.brand_id = ?'
+        );
         $stmt->execute([$itemId, TenantContext::getBrandId()]);
         return (bool) $stmt->fetch();
     }

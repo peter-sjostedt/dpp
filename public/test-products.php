@@ -43,7 +43,7 @@ Auth::requireLogin();
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Products</h1>
         <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
-        <div id="company_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
+        <div id="tenant_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
     <div class="container">
@@ -53,8 +53,10 @@ Auth::requireLogin();
             <div class="section" id="sec-list">
                 <div class="section-header" onclick="toggle('sec-list')"><h2>Lista per brand</h2></div>
                 <div class="section-content">
-                    <label>Brand:</label>
-                    <select id="brand_id"></select>
+                    <div id="brand_wrapper">
+                        <label>Brand:</label>
+                        <select id="brand_id"></select>
+                    </div>
                     <button class="btn-get" onclick="api('GET', '/api/brands/' + document.getElementById('brand_id').value + '/products')">Hämta produkter</button>
                 </div>
             </div>
@@ -71,13 +73,27 @@ Auth::requireLogin();
             </div>
 
             <div class="section" id="sec-get">
-                <div class="section-header" onclick="toggle('sec-get')"><h2>Hämta/Ta bort/DPP</h2></div>
+                <div class="section-header" onclick="toggle('sec-get')"><h2>Hämta/Ta bort</h2></div>
                 <div class="section-content">
                     <label>Product:</label>
                     <select id="product_id_select"></select>
                     <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId())">Hämta</button>
-                    <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/dpp')">Visa DPP</button>
                     <button class="btn-delete" onclick="api('DELETE', '/api/products/' + getProductId())">Ta bort</button>
+                </div>
+            </div>
+
+            <div class="section" id="sec-dpp">
+                <div class="section-header" onclick="toggle('sec-dpp')"><h2>DPP Export</h2></div>
+                <div class="section-content">
+                    <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/dpp')">Snabbvy (legacy)</button>
+                    <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/dpp/preview')">Preview</button>
+                    <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/dpp/validate')">Validate</button>
+                    <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/dpp/export')">Export</button>
+                    <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                        <strong>Preview</strong> - Visa all DPP-data<br>
+                        <strong>Validate</strong> - Kontrollera fullständighet<br>
+                        <strong>Export</strong> - Strukturerat format för DPP-host
+                    </p>
                 </div>
             </div>
 
@@ -174,21 +190,24 @@ Auth::requireLogin();
         function getApiKey() {
             const apiKey = localStorage.getItem('dpp_api_key');
             if (!apiKey) {
-                document.getElementById('response').textContent = 'Välj ett företag på huvudsidan först!';
+                document.getElementById('response').textContent = 'Välj en tenant på huvudsidan först!';
                 document.getElementById('response').className = 'response-section error';
                 return null;
             }
             return apiKey;
         }
 
-        function showCompanyBanner() {
-            const companyName = localStorage.getItem('dpp_company_name');
-            const banner = document.getElementById('company_banner');
-            if (companyName) {
-                banner.textContent = 'Testar som: ' + companyName;
+        function showTenantBanner() {
+            const tenantName = localStorage.getItem('dpp_tenant_name');
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const banner = document.getElementById('tenant_banner');
+            if (tenantName && tenantType) {
+                const typeLabel = tenantType === 'brand' ? 'Brand' : 'Supplier';
+                banner.textContent = 'Testar som ' + typeLabel + ': ' + tenantName;
                 banner.style.display = 'inline-block';
+                banner.style.background = tenantType === 'brand' ? 'rgba(123,31,162,0.5)' : 'rgba(21,101,192,0.5)';
             } else {
-                banner.textContent = 'Inget företag valt - välj på huvudsidan';
+                banner.textContent = 'Ingen tenant vald - välj på huvudsidan';
                 banner.style.background = 'rgba(255,0,0,0.3)';
             }
         }
@@ -225,7 +244,10 @@ Auth::requireLogin();
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const res = await fetch('/api/brands', {
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const tenantId = localStorage.getItem('dpp_tenant_id');
+
+            const res = await fetch('/api/brands/all', {
                 headers: { 'X-API-Key': apiKey }
             });
             const json = await res.json();
@@ -233,8 +255,14 @@ Auth::requireLogin();
             select.innerHTML = '<option value="">-- Välj brand --</option>';
             if (json.data) {
                 json.data.forEach(b => {
-                    select.innerHTML += `<option value="${b.id}">${b.id}: ${b.brand_name}</option>`;
+                    const selected = (tenantType === 'brand' && b.id == tenantId) ? ' selected' : '';
+                    select.innerHTML += `<option value="${b.id}"${selected}>${b.brand_name}</option>`;
                 });
+                // Hide brand dropdown if tenant is a brand (only one option)
+                if (tenantType === 'brand' && tenantId) {
+                    document.getElementById('brand_wrapper').style.display = 'none';
+                    loadProducts();
+                }
             }
         }
 
@@ -266,7 +294,7 @@ Auth::requireLogin();
 
         document.getElementById('brand_id').addEventListener('change', loadProducts);
 
-        showCompanyBanner();
+        showTenantBanner();
         loadAll();
 
         function create() {

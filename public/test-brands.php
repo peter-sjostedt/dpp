@@ -63,11 +63,11 @@ Auth::requireLogin();
                 <label>Parent Company <span>Moderbolag som äger varumärket (valfritt)</span></label>
                 <input type="text" id="parent_company">
 
-                <label>Trader Name <span>Juridiskt namn på den ekonomiska aktören</span></label>
-                <input type="text" id="trader_name">
+                <label>Trader <span>Juridiskt namn på den ekonomiska aktören</span></label>
+                <input type="text" id="trader">
 
-                <label>Trader Address <span>Fullständig adress till den ekonomiska aktören</span></label>
-                <input type="text" id="trader_address">
+                <label>Trader Location <span>Fullständig adress till den ekonomiska aktören</span></label>
+                <input type="text" id="trader_location">
 
                 <label>Logo URL <span>URL till varumärkets logotyp</span></label>
                 <input type="text" id="logo_url">
@@ -233,8 +233,8 @@ Auth::requireLogin();
                 document.getElementById('brand_name').value = b.brand_name || '';
                 document.getElementById('sub_brand').value = b.sub_brand || '';
                 document.getElementById('parent_company').value = b.parent_company || '';
-                document.getElementById('trader_name').value = b.trader_name || '';
-                document.getElementById('trader_address').value = b.trader_address || '';
+                document.getElementById('trader').value = b.trader || '';
+                document.getElementById('trader_location').value = b.trader_location || '';
                 document.getElementById('logo_url').value = b.logo_url || '';
                 document.getElementById('lei').value = b.lei || '';
                 document.getElementById('gs1_company_prefix').value = b.gs1_company_prefix || '';
@@ -245,8 +245,8 @@ Auth::requireLogin();
             document.getElementById('brand_name').value = '';
             document.getElementById('sub_brand').value = '';
             document.getElementById('parent_company').value = '';
-            document.getElementById('trader_name').value = '';
-            document.getElementById('trader_address').value = '';
+            document.getElementById('trader').value = '';
+            document.getElementById('trader_location').value = '';
             document.getElementById('logo_url').value = '';
             document.getElementById('lei').value = '';
             document.getElementById('gs1_company_prefix').value = '';
@@ -274,8 +274,8 @@ Auth::requireLogin();
                 brand_name: document.getElementById('brand_name').value || null,
                 sub_brand: document.getElementById('sub_brand').value || null,
                 parent_company: document.getElementById('parent_company').value || null,
-                trader_name: document.getElementById('trader_name').value || null,
-                trader_address: document.getElementById('trader_address').value || null,
+                trader: document.getElementById('trader').value || null,
+                trader_location: document.getElementById('trader_location').value || null,
                 logo_url: document.getElementById('logo_url').value || null,
                 lei: lei || null,
                 gs1_company_prefix: gs1 || null

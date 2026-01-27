@@ -40,30 +40,37 @@ Auth::requireLogin();
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Batches</h1>
-        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">🆕 Per produktionsorder</p>
-        <div id="company_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">Produktionsordrar per produkt</p>
+        <div id="tenant_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
     <div class="container">
         <div class="form-section">
             <button class="btn-refresh" onclick="loadAll()">Ladda om data</button>
 
-            <div class="section" id="sec-select">
-                <div class="section-header" onclick="toggle('sec-select')"><h2>Välj variant</h2></div>
+            <div class="section open" id="sec-select">
+                <div class="section-header" onclick="toggle('sec-select')"><h2>Välj produkt & batch</h2></div>
                 <div class="section-content">
-                    <label>Brand:</label>
-                    <select id="brand_id"></select>
+                    <div id="brand_wrapper">
+                        <label>Brand:</label>
+                        <select id="brand_id"></select>
+                    </div>
                     <label>Product:</label>
                     <select id="product_id"></select>
-                    <label>Variant:</label>
-                    <select id="variant_id"></select>
-                    <button class="btn-get" onclick="api('GET', '/api/variants/' + getVariantId() + '/batches')">Hämta batches</button>
+                    <label>Batch:</label>
+                    <select id="batch_id_select"></select>
+                    <button class="btn-get" onclick="api('GET', '/api/batches/' + getBatchId())">Hämta batch-detaljer</button>
+                    <button class="btn-delete" onclick="deleteBatch()">Ta bort batch</button>
                 </div>
             </div>
 
             <div class="section" id="sec-create">
                 <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa ny batch</h2></div>
                 <div class="section-content">
+                    <div id="supplier_wrapper">
+                        <label>Konfektionsfabrik (Supplier):</label>
+                        <select id="supplier_id"></select>
+                    </div>
                     <label>Batch-nummer:</label>
                     <input type="text" id="batch_number" placeholder="BATCH-2024-001">
                     <label>PO-nummer:</label>
@@ -77,57 +84,25 @@ Auth::requireLogin();
                         <option value="planned">Planned</option>
                         <option value="in_production">In Production</option>
                         <option value="completed">Completed</option>
-                        <option value="shipped">Shipped</option>
                     </select>
-                    <button class="btn-post" onclick="create()">Skapa</button>
+                    <button class="btn-post" onclick="createBatch()">Skapa</button>
                 </div>
             </div>
 
-            <div class="section" id="sec-get">
-                <div class="section-header" onclick="toggle('sec-get')"><h2>Hämta/Ta bort batch</h2></div>
-                <div class="section-content">
-                    <label>Batch:</label>
-                    <select id="batch_id_select"></select>
-                    <button class="btn-get" onclick="api('GET', '/api/batches/' + getBatchId())">Hämta</button>
-                    <button class="btn-delete" onclick="api('DELETE', '/api/batches/' + getBatchId())">Ta bort</button>
-                </div>
-            </div>
-
-            <div class="section" id="sec-suppliers">
-                <div class="section-header" onclick="toggle('sec-suppliers')"><h2>Batch Suppliers</h2></div>
-                <div class="section-content">
-                    <label>Supplier:</label>
-                    <select id="supplier_id"></select>
-                    <label>Produktionssteg:</label>
-                    <select id="production_stage">
-                        <option value="confection">Confection</option>
-                        <option value="dyeing_printing">Dyeing/Printing</option>
-                        <option value="weaving_knitting">Weaving/Knitting</option>
-                        <option value="spinning">Spinning</option>
-                        <option value="other">Other</option>
-                    </select>
-                    <label>Ursprungsland (2 bokstäver):</label>
-                    <input type="text" id="country_of_origin" placeholder="PT" maxlength="2">
-                    <button class="btn-get" onclick="api('GET', '/api/batches/' + getBatchId() + '/suppliers')">Lista suppliers</button>
-                    <button class="btn-post" onclick="addSupplier()">Lägg till supplier</button>
-                </div>
-            </div>
 
             <div class="section" id="sec-materials">
                 <div class="section-header" onclick="toggle('sec-materials')"><h2>Batch Materials</h2></div>
                 <div class="section-content">
                     <label>Factory Material:</label>
                     <select id="factory_material_id"></select>
-                    <label>Komponenttyp:</label>
-                    <select id="component_type">
+                    <label>Komponent:</label>
+                    <select id="component">
                         <option value="body_fabric">Body fabric</option>
                         <option value="lining">Lining</option>
                         <option value="trim">Trim</option>
                         <option value="padding">Padding</option>
                         <option value="other">Other</option>
                     </select>
-                    <label>Antal meter:</label>
-                    <input type="number" step="0.01" id="quantity_meters" placeholder="10.5">
                     <button class="btn-get" onclick="api('GET', '/api/batches/' + getBatchId() + '/materials')">Lista materials</button>
                     <button class="btn-post" onclick="addMaterial()">Lägg till material</button>
                 </div>
@@ -142,10 +117,10 @@ Auth::requireLogin();
             document.getElementById(id).classList.toggle('open');
         }
 
-        function getVariantId() {
-            const val = document.getElementById('variant_id').value;
+        function getProductId() {
+            const val = document.getElementById('product_id').value;
             if (!val) {
-                document.getElementById('response').textContent = 'Välj en variant först!';
+                document.getElementById('response').textContent = 'Välj en produkt först!';
                 document.getElementById('response').className = 'response-section error';
                 return null;
             }
@@ -165,28 +140,30 @@ Auth::requireLogin();
         function getApiKey() {
             const apiKey = localStorage.getItem('dpp_api_key');
             if (!apiKey) {
-                document.getElementById('response').textContent = 'Välj ett företag på huvudsidan först!';
+                document.getElementById('response').textContent = 'Välj en tenant på huvudsidan först!';
                 document.getElementById('response').className = 'response-section error';
                 return null;
             }
             return apiKey;
         }
 
-        function showCompanyBanner() {
-            const companyName = localStorage.getItem('dpp_company_name');
-            const banner = document.getElementById('company_banner');
-            if (companyName) {
-                banner.textContent = 'Testar som: ' + companyName;
+        function showTenantBanner() {
+            const tenantName = localStorage.getItem('dpp_tenant_name');
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const banner = document.getElementById('tenant_banner');
+            if (tenantName && tenantType) {
+                const typeLabel = tenantType === 'brand' ? 'Brand' : 'Supplier';
+                banner.textContent = 'Testar som ' + typeLabel + ': ' + tenantName;
                 banner.style.display = 'inline-block';
+                banner.style.background = tenantType === 'brand' ? 'rgba(123,31,162,0.5)' : 'rgba(21,101,192,0.5)';
             } else {
-                banner.textContent = 'Inget företag valt - välj på huvudsidan';
+                banner.textContent = 'Ingen tenant vald - välj på huvudsidan';
                 banner.style.background = 'rgba(255,0,0,0.3)';
             }
         }
 
         async function api(method, endpoint, data = null) {
-            // Prevent API calls with invalid IDs
-            if (endpoint.includes('/null/') || endpoint.includes('//') || endpoint.endsWith('/null')) {
+            if (endpoint.includes('/null') || endpoint.endsWith('/')) {
                 return;
             }
             const apiKey = getApiKey();
@@ -205,6 +182,7 @@ Auth::requireLogin();
                 const json = await res.json();
                 document.getElementById('response').textContent = JSON.stringify(json, null, 2);
                 document.getElementById('response').className = 'response-section' + (json.error ? ' error' : '');
+                return json;
             } catch (e) {
                 document.getElementById('response').textContent = 'Error: ' + e.message;
                 document.getElementById('response').className = 'response-section error';
@@ -215,16 +193,29 @@ Auth::requireLogin();
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const res = await fetch('/api/brands', {
-                headers: { 'X-API-Key': apiKey }
-            });
-            const json = await res.json();
-            const select = document.getElementById('brand_id');
-            select.innerHTML = '<option value="">-- Välj brand --</option>';
-            if (json.data) {
-                json.data.forEach(b => {
-                    select.innerHTML += `<option value="${b.id}">${b.id}: ${b.brand_name}</option>`;
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const tenantId = localStorage.getItem('dpp_tenant_id');
+
+            try {
+                const res = await fetch('/api/brands/all', {
+                    headers: { 'X-API-Key': apiKey }
                 });
+                const json = await res.json();
+                const select = document.getElementById('brand_id');
+                select.innerHTML = '<option value="">-- Välj brand --</option>';
+                if (json.data) {
+                    json.data.forEach(b => {
+                        const selected = (tenantType === 'brand' && b.id == tenantId) ? ' selected' : '';
+                        select.innerHTML += `<option value="${b.id}"${selected}>${b.brand_name}</option>`;
+                    });
+                    // Hide brand dropdown if tenant is a brand (only one option)
+                    if (tenantType === 'brand' && tenantId) {
+                        document.getElementById('brand_wrapper').style.display = 'none';
+                        loadProducts();
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load brands:', e);
             }
         }
 
@@ -235,40 +226,21 @@ Auth::requireLogin();
             const brandId = document.getElementById('brand_id').value;
             const select = document.getElementById('product_id');
             select.innerHTML = '<option value="">-- Välj produkt --</option>';
-            document.getElementById('variant_id').innerHTML = '<option value="">-- Välj variant --</option>';
             document.getElementById('batch_id_select').innerHTML = '<option value="">-- Välj batch --</option>';
 
             if (brandId) {
-                const res = await fetch('/api/brands/' + brandId + '/products', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const json = await res.json();
-                if (json.data) {
-                    json.data.forEach(p => {
-                        select.innerHTML += `<option value="${p.id}">${p.id}: ${p.product_name}</option>`;
+                try {
+                    const res = await fetch('/api/brands/' + brandId + '/products', {
+                        headers: { 'X-API-Key': apiKey }
                     });
-                }
-            }
-        }
-
-        async function loadVariants() {
-            const apiKey = getApiKey();
-            if (!apiKey) return;
-
-            const productId = document.getElementById('product_id').value;
-            const select = document.getElementById('variant_id');
-            select.innerHTML = '<option value="">-- Välj variant --</option>';
-            document.getElementById('batch_id_select').innerHTML = '<option value="">-- Välj batch --</option>';
-
-            if (productId) {
-                const res = await fetch('/api/products/' + productId + '/variants', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const json = await res.json();
-                if (json.data) {
-                    json.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.sku} (${v.size || '-'})</option>`;
-                    });
+                    const json = await res.json();
+                    if (json.data) {
+                        json.data.forEach(p => {
+                            select.innerHTML += `<option value="${p.id}">${p.product_name}</option>`;
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to load products:', e);
                 }
             }
         }
@@ -277,37 +249,60 @@ Auth::requireLogin();
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const variantId = document.getElementById('variant_id').value;
+            const productId = document.getElementById('product_id').value;
             const select = document.getElementById('batch_id_select');
             select.innerHTML = '<option value="">-- Välj batch --</option>';
 
-            if (variantId) {
-                const res = await fetch('/api/variants/' + variantId + '/batches', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const json = await res.json();
-                if (json.data) {
-                    json.data.forEach(b => {
-                        select.innerHTML += `<option value="${b.id}">${b.id}: ${b.batch_number}</option>`;
+            if (productId) {
+                try {
+                    const res = await fetch('/api/products/' + productId + '/batches', {
+                        headers: { 'X-API-Key': apiKey }
                     });
+                    const json = await res.json();
+                    if (json.data) {
+                        json.data.forEach(b => {
+                            select.innerHTML += `<option value="${b.id}">${b.batch_number} (${b.supplier_name || 'no supplier'})</option>`;
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to load batches:', e);
                 }
             }
+        }
+
+        async function fetchBatches() {
+            const productId = getProductId();
+            if (!productId) return;
+            await api('GET', '/api/products/' + productId + '/batches');
+            loadBatches();
         }
 
         async function loadSuppliers() {
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const res = await fetch('/api/suppliers', {
-                headers: { 'X-API-Key': apiKey }
-            });
-            const json = await res.json();
-            const select = document.getElementById('supplier_id');
-            select.innerHTML = '<option value="">-- Välj supplier --</option>';
-            if (json.data) {
-                json.data.forEach(s => {
-                    select.innerHTML += `<option value="${s.id}">${s.id}: ${s.supplier_name}</option>`;
+            const tenantType = localStorage.getItem('dpp_tenant_type');
+            const tenantId = localStorage.getItem('dpp_tenant_id');
+
+            try {
+                const res = await fetch('/api/suppliers', {
+                    headers: { 'X-API-Key': apiKey }
                 });
+                const json = await res.json();
+                const select = document.getElementById('supplier_id');
+                select.innerHTML = '<option value="">-- Välj supplier --</option>';
+                if (json.data) {
+                    json.data.forEach(s => {
+                        const selected = (tenantType === 'supplier' && s.id == tenantId) ? ' selected' : '';
+                        select.innerHTML += `<option value="${s.id}"${selected}>${s.supplier_name}</option>`;
+                    });
+                    // Hide supplier dropdown if tenant is a supplier (only one option)
+                    if (tenantType === 'supplier' && tenantId) {
+                        document.getElementById('supplier_wrapper').style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load suppliers:', e);
             }
         }
 
@@ -315,16 +310,20 @@ Auth::requireLogin();
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            const res = await fetch('/api/materials', {
-                headers: { 'X-API-Key': apiKey }
-            });
-            const json = await res.json();
-            const select = document.getElementById('factory_material_id');
-            select.innerHTML = '<option value="">-- Välj material --</option>';
-            if (json.data) {
-                json.data.forEach(m => {
-                    select.innerHTML += `<option value="${m.id}">${m.id}: ${m.material_name}</option>`;
+            try {
+                const res = await fetch('/api/materials', {
+                    headers: { 'X-API-Key': apiKey }
                 });
+                const json = await res.json();
+                const select = document.getElementById('factory_material_id');
+                select.innerHTML = '<option value="">-- Välj material --</option>';
+                if (json.data) {
+                    json.data.forEach(m => {
+                        select.innerHTML += `<option value="${m.id}">${m.material_name}</option>`;
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load materials:', e);
             }
         }
 
@@ -333,40 +332,58 @@ Auth::requireLogin();
             loadSuppliers();
             loadFactoryMaterials();
             document.getElementById('product_id').innerHTML = '<option value="">-- Välj produkt --</option>';
-            document.getElementById('variant_id').innerHTML = '<option value="">-- Välj variant --</option>';
             document.getElementById('batch_id_select').innerHTML = '<option value="">-- Välj batch --</option>';
         }
 
         document.getElementById('brand_id').addEventListener('change', loadProducts);
-        document.getElementById('product_id').addEventListener('change', loadVariants);
-        document.getElementById('variant_id').addEventListener('change', loadBatches);
+        document.getElementById('product_id').addEventListener('change', loadBatches);
 
-        showCompanyBanner();
+        showTenantBanner();
         loadAll();
 
-        function create() {
-            api('POST', '/api/variants/' + document.getElementById('variant_id').value + '/batches', {
+        async function createBatch() {
+            const productId = getProductId();
+            if (!productId) return;
+
+            const supplierId = document.getElementById('supplier_id').value;
+            if (!supplierId) {
+                document.getElementById('response').textContent = 'Välj en supplier först!';
+                document.getElementById('response').className = 'response-section error';
+                return;
+            }
+
+            await api('POST', '/api/products/' + productId + '/batches', {
+                supplier_id: parseInt(supplierId),
                 batch_number: document.getElementById('batch_number').value,
                 po_number: document.getElementById('po_number').value || null,
                 production_date: document.getElementById('production_date').value || null,
                 quantity: parseInt(document.getElementById('quantity').value) || null,
                 status: document.getElementById('status').value
-            }).then(() => loadBatches());
-        }
-
-        function addSupplier() {
-            api('POST', '/api/batches/' + document.getElementById('batch_id_select').value + '/suppliers', {
-                supplier_id: parseInt(document.getElementById('supplier_id').value),
-                production_stage: document.getElementById('production_stage').value,
-                country_of_origin: document.getElementById('country_of_origin').value || null
             });
+            loadBatches();
         }
 
-        function addMaterial() {
-            api('POST', '/api/batches/' + document.getElementById('batch_id_select').value + '/materials', {
-                factory_material_id: parseInt(document.getElementById('factory_material_id').value),
-                component_type: document.getElementById('component_type').value,
-                quantity_meters: parseFloat(document.getElementById('quantity_meters').value) || null
+        async function deleteBatch() {
+            const batchId = getBatchId();
+            if (!batchId) return;
+            await api('DELETE', '/api/batches/' + batchId);
+            loadBatches();
+        }
+
+        async function addMaterial() {
+            const batchId = getBatchId();
+            if (!batchId) return;
+
+            const materialId = document.getElementById('factory_material_id').value;
+            if (!materialId) {
+                document.getElementById('response').textContent = 'Välj ett material först!';
+                document.getElementById('response').className = 'response-section error';
+                return;
+            }
+
+            await api('POST', '/api/batches/' + batchId + '/materials', {
+                factory_material_id: parseInt(materialId),
+                component: document.getElementById('component').value
             });
         }
     </script>

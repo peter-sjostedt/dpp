@@ -7,7 +7,7 @@ use App\Helpers\Validator;
 
 /**
  * Item controller with multi-tenant access control.
- * - As Brand: Full CRUD on own items (filtered by brand_id)
+ * - As Brand: Full CRUD on own items (filtered via batch.brand_id)
  * - As Supplier: No access to items
  */
 class ItemController extends TenantAwareController
@@ -28,8 +28,8 @@ class ItemController extends TenantAwareController
         $stmt = $this->db->prepare(
             'SELECT i.*, b.batch_number
              FROM items i
-             LEFT JOIN batches b ON i.batch_id = b.id
-             WHERE i.batch_id = ? AND i.brand_id = ?
+             JOIN batches b ON i.batch_id = b.id
+             WHERE i.batch_id = ? AND b.brand_id = ?
              ORDER BY i.created_at DESC'
         );
         $stmt->execute([$batchId, $brandId]);
@@ -48,12 +48,12 @@ class ItemController extends TenantAwareController
         }
 
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
+            'SELECT i.*, b.batch_number, pv.gtin as variant_gtin, pv.size, pv.color_brand as color_name, p.product_name,
                     p.data_carrier_type, p.data_carrier_material, p.data_carrier_location
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
-             LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
-             LEFT JOIN products p ON pv.product_id = p.id
+             LEFT JOIN products p ON b.product_id = p.id
+             LEFT JOIN product_variants pv ON i.product_variant_id = pv.id
              WHERE i.id = ?'
         );
         $stmt->execute([$itemId]);
@@ -74,15 +74,15 @@ class ItemController extends TenantAwareController
         $brandId = TenantContext::getBrandId();
 
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
+            'SELECT i.*, b.batch_number, pv.gtin as variant_gtin, pv.size, pv.color_brand as color_name, p.product_name,
                     p.data_carrier_type, p.data_carrier_material, p.data_carrier_location,
                     br.brand_name
              FROM items i
-             LEFT JOIN batches b ON i.batch_id = b.id
-             LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
-             LEFT JOIN products p ON pv.product_id = p.id
-             LEFT JOIN brands br ON p.brand_id = br.id
-             WHERE i.sgtin = ? AND i.brand_id = ?'
+             JOIN batches b ON i.batch_id = b.id
+             JOIN products p ON b.product_id = p.id
+             LEFT JOIN product_variants pv ON i.product_variant_id = pv.id
+             JOIN brands br ON p.brand_id = br.id
+             WHERE i.sgtin = ? AND b.brand_id = ?'
         );
         $stmt->execute([$params['sgtin'], $brandId]);
         $item = $stmt->fetch();
@@ -103,12 +103,11 @@ class ItemController extends TenantAwareController
         $batchId = (int) $params['batchId'];
         $data = Validator::getJsonBody();
 
-        // Verify batch exists and belongs to brand, get product GTIN
+        // Verify batch exists and belongs to brand, get product info for SGTIN base
         $stmt = $this->db->prepare(
-            'SELECT b.id, p.gtin
+            'SELECT b.id, COALESCE(p.gtin, p.id) as product_code
              FROM batches b
-             JOIN product_variants pv ON b.product_variant_id = pv.id
-             JOIN products p ON pv.product_id = p.id
+             JOIN products p ON b.product_id = p.id
              WHERE b.id = ? AND b.brand_id = ?'
         );
         $stmt->execute([$batchId, $brandId]);
@@ -119,7 +118,7 @@ class ItemController extends TenantAwareController
         }
 
         // Generate sgtin if not provided
-        $sgtin = $data['sgtin'] ?? $this->generateSgtin($batch['gtin']);
+        $sgtin = $data['sgtin'] ?? $this->generateSgtin($batch['product_code']);
 
         // Check for duplicate sgtin
         $stmt = $this->db->prepare('SELECT id FROM items WHERE sgtin = ?');
@@ -130,15 +129,12 @@ class ItemController extends TenantAwareController
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO items (brand_id, batch_id, product_variant_id, tid, sgtin)
-             SELECT ?, ?, product_variant_id, ?, ? FROM batches WHERE id = ?'
+            'INSERT INTO items (batch_id, tid, sgtin) VALUES (?, ?, ?)'
         );
         $stmt->execute([
-            $brandId,
             $batchId,
             $data['tid'] ?? null,
-            $sgtin,
-            $batchId
+            $sgtin
         ]);
 
         $id = $this->db->lastInsertId();
@@ -166,10 +162,9 @@ class ItemController extends TenantAwareController
 
         // Verify batch exists and belongs to brand
         $stmt = $this->db->prepare(
-            'SELECT b.id, b.product_variant_id, p.gtin
+            'SELECT b.id, COALESCE(p.gtin, p.id) as product_code
              FROM batches b
-             JOIN product_variants pv ON b.product_variant_id = pv.id
-             JOIN products p ON pv.product_id = p.id
+             JOIN products p ON b.product_id = p.id
              WHERE b.id = ? AND b.brand_id = ?'
         );
         $stmt->execute([$batchId, $brandId]);
@@ -184,15 +179,13 @@ class ItemController extends TenantAwareController
 
         try {
             $stmt = $this->db->prepare(
-                'INSERT INTO items (brand_id, batch_id, product_variant_id, sgtin) VALUES (?, ?, ?, ?)'
+                'INSERT INTO items (batch_id, sgtin) VALUES (?, ?)'
             );
 
             for ($i = 0; $i < $quantity; $i++) {
-                $sgtin = $this->generateSgtin($batch['gtin']);
+                $sgtin = $this->generateSgtin($batch['product_code']);
                 $stmt->execute([
-                    $brandId,
                     $batchId,
-                    $batch['product_variant_id'],
                     $sgtin
                 ]);
                 $createdIds[] = [

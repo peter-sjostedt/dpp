@@ -49,7 +49,7 @@ class FactoryMaterialCompositionController extends TenantAwareController {
         }
 
         $stmt = $this->db->prepare(
-            'SELECT * FROM factory_material_compositions WHERE factory_material_id = ? ORDER BY percentage DESC'
+            'SELECT * FROM factory_material_compositions WHERE factory_material_id = ? ORDER BY content_value DESC'
         );
         $stmt->execute([$params['materialId']]);
         Response::success($stmt->fetchAll());
@@ -60,7 +60,7 @@ class FactoryMaterialCompositionController extends TenantAwareController {
         $this->requireSupplier();
 
         $data = Validator::getJsonBody();
-        Validator::required($data, ['fiber_type', 'percentage']);
+        Validator::required($data, ['content_name', 'content_value']);
 
         // Only allow creating compositions for OWN materials
         if (!$this->verifyMaterialOwnership($params['materialId'])) {
@@ -69,19 +69,18 @@ class FactoryMaterialCompositionController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'INSERT INTO factory_material_compositions (
-                factory_material_id, fiber_type, percentage, fiber_source,
-                material_trademark, is_recycled, recycled_percentage, recycled_source
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                factory_material_id, content_name, content_value, content_source,
+                recycled, recycled_percentage, recycled_input_source
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $params['materialId'],
-            $data['fiber_type'],
-            $data['percentage'],
-            $data['fiber_source'] ?? null,
-            $data['material_trademark'] ?? null,
-            $data['is_recycled'] ?? false,
+            $data['content_name'],
+            $data['content_value'],
+            $data['content_source'] ?? null,
+            $data['recycled'] ?? false,
             $data['recycled_percentage'] ?? null,
-            $data['recycled_source'] ?? null
+            $data['recycled_input_source'] ?? null
         ]);
 
         $id = (int) $this->db->lastInsertId();
@@ -111,23 +110,21 @@ class FactoryMaterialCompositionController extends TenantAwareController {
 
         $stmt = $this->db->prepare(
             'UPDATE factory_material_compositions SET
-                fiber_type = COALESCE(?, fiber_type),
-                percentage = COALESCE(?, percentage),
-                fiber_source = COALESCE(?, fiber_source),
-                material_trademark = COALESCE(?, material_trademark),
-                is_recycled = COALESCE(?, is_recycled),
+                content_name = COALESCE(?, content_name),
+                content_value = COALESCE(?, content_value),
+                content_source = COALESCE(?, content_source),
+                recycled = COALESCE(?, recycled),
                 recycled_percentage = COALESCE(?, recycled_percentage),
-                recycled_source = COALESCE(?, recycled_source)
+                recycled_input_source = COALESCE(?, recycled_input_source)
             WHERE id = ?'
         );
         $stmt->execute([
-            $data['fiber_type'] ?? null,
-            $data['percentage'] ?? null,
-            $data['fiber_source'] ?? null,
-            $data['material_trademark'] ?? null,
-            $data['is_recycled'] ?? null,
+            $data['content_name'] ?? null,
+            $data['content_value'] ?? null,
+            $data['content_source'] ?? null,
+            $data['recycled'] ?? null,
             $data['recycled_percentage'] ?? null,
-            $data['recycled_source'] ?? null,
+            $data['recycled_input_source'] ?? null,
             $params['id']
         ]);
 

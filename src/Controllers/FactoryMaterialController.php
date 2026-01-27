@@ -116,17 +116,14 @@ class FactoryMaterialController extends TenantAwareController
 
         $stmt = $this->db->prepare(
             'INSERT INTO factory_materials (
-                supplier_id, material_name, material_type, _internal_code,
-                net_weight_per_meter, width_cm, _is_active
-             ) VALUES (?, ?, ?, ?, ?, ?, ?)'
+                supplier_id, material_name, material_type, description, _is_active
+             ) VALUES (?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $supplierId,
             $data['material_name'],
             $data['material_type'] ?? 'textile',
-            $data['_internal_code'] ?? null,
-            $data['net_weight_per_meter'] ?? null,
-            $data['width_cm'] ?? null,
+            $data['description'] ?? null,
             $data['_is_active'] ?? true
         ]);
 
@@ -151,18 +148,14 @@ class FactoryMaterialController extends TenantAwareController
             'UPDATE factory_materials SET
                 material_name = COALESCE(?, material_name),
                 material_type = COALESCE(?, material_type),
-                _internal_code = COALESCE(?, _internal_code),
-                net_weight_per_meter = COALESCE(?, net_weight_per_meter),
-                width_cm = COALESCE(?, width_cm),
+                description = COALESCE(?, description),
                 _is_active = COALESCE(?, _is_active)
              WHERE id = ?'
         );
         $stmt->execute([
             $data['material_name'] ?? null,
             $data['material_type'] ?? null,
-            $data['_internal_code'] ?? null,
-            $data['net_weight_per_meter'] ?? null,
-            $data['width_cm'] ?? null,
+            $data['description'] ?? null,
             $data['_is_active'] ?? null,
             $materialId
         ]);

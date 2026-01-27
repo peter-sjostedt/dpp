@@ -3,7 +3,8 @@
  * DPP API Entry Point
  *
  * Alla /api/* requests går via denna fil.
- * Autentiserar via X-API-Key header innan routing.
+ * Admin-API: X-Admin-Key header
+ * Tenant-API: X-API-Key header
  */
 declare(strict_types=1);
 
@@ -11,13 +12,14 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 use FastRoute\RouteCollector;
 use App\Config\TenantContext;
+use App\Config\AdminAuth;
 use App\Helpers\Response;
 
 // CORS headers
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
+header('Access-Control-Allow-Headers: Content-Type, X-API-Key, X-Admin-Key');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
@@ -39,9 +41,16 @@ if (isset($_GET['route'])) {
 // ============================================
 // AUTENTISERING
 // ============================================
-// Skip authentication for tenant list endpoints (test panel use only)
-// These are public endpoints that list available brands/suppliers
-if (!preg_match('#^/api/tenants/#', $uri)) {
+// Admin routes: require X-Admin-Key
+if (preg_match('#^/api/admin/#', $uri)) {
+    AdminAuth::authenticate();
+}
+// Tenant list endpoints: no auth required (test panel use only)
+elseif (preg_match('#^/api/tenants/#', $uri)) {
+    // Skip authentication
+}
+// All other routes: require X-API-Key (tenant auth)
+else {
     TenantContext::authenticate();
 }
 

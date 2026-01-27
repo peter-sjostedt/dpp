@@ -9,11 +9,11 @@ Auth::requireLogin();
 
 $pdo = Database::getInstance()->getConnection();
 
-// Hämta alla produkter för dropdown (endast GTIN - simulerar QR-skanning)
+// Hämta alla produkter för dropdown (gtin som identifierare)
 $productsStmt = $pdo->query("
-    SELECT gtin
+    SELECT id, gtin, product_name
     FROM products
-    WHERE _is_active = TRUE
+    WHERE _is_active = TRUE AND gtin IS NOT NULL
     ORDER BY gtin
 ");
 $products = $productsStmt->fetchAll();
@@ -21,11 +21,11 @@ $products = $productsStmt->fetchAll();
 // GS1 Digital Link bas-URL
 $gs1BaseUrl = 'https://id.gs1.org/01/';
 
-// Hämta vald produkt via GS1 Digital Link eller direkt GTIN
+// Hämta vald produkt via GS1 Digital Link eller direkt gtin
 $selectedGtin = null;
 $selectedGs1Link = $_GET['gs1_link'] ?? null;
 
-// Extrahera GTIN från GS1 Digital Link
+// Extrahera gtin från GS1 Digital Link
 if ($selectedGs1Link) {
     // Format: https://id.gs1.org/01/7350012345001
     if (preg_match('/\/01\/(\d{13,14})/', $selectedGs1Link, $matches)) {
@@ -33,7 +33,7 @@ if ($selectedGs1Link) {
     }
 }
 
-// Alternativt: direkt GTIN-parameter (för bakåtkompatibilitet)
+// Alternativt: direkt gtin parameter
 if (!$selectedGtin && isset($_GET['gtin'])) {
     $selectedGtin = $_GET['gtin'];
 }
@@ -43,12 +43,10 @@ $variants = [];
 $careInfo = null;
 $complianceInfo = null;
 $certifications = [];
-$chemicalCompliance = [];
 $circularityInfo = null;
 $sustainabilityInfo = null;
 $latestBatch = null;
 $batchMaterials = [];
-$batchSuppliers = [];
 
 if ($selectedGtin) {
     // Huvudquery: Product + Brand
@@ -68,13 +66,12 @@ if ($selectedGtin) {
             p.msrp,
             p.category,
             p.product_group,
-            p.line,
-            p.garment_type,
+            p.type_item,
             p.age_group,
             p.gender,
             p.market_segment,
             p.water_properties,
-            p.weight_kg,
+            p.net_weight,
             p.data_carrier_type,
             p.data_carrier_material,
             p.data_carrier_location,
@@ -83,8 +80,8 @@ if ($selectedGtin) {
             br.logo_url,
             br.sub_brand,
             br.parent_company,
-            br.trader_name,
-            br.trader_address
+            br.trader,
+            br.trader_location
 
         FROM products p
         JOIN brands br ON p.brand_id = br.id
@@ -98,15 +95,15 @@ if ($selectedGtin) {
 
         // Hämta varianter
         $varStmt = $pdo->prepare("
-            SELECT id, sku, size, size_system, color_name, color_code
+            SELECT id, item_number, gtin, size, size_country_code, color_brand, color_general
             FROM product_variants
             WHERE product_id = ? AND _is_active = TRUE
-            ORDER BY color_name, size
+            ORDER BY color_brand, size
         ");
         $varStmt->execute([$productId]);
         $variants = $varStmt->fetchAll();
 
-        // Hämta senaste batch
+        // Hämta senaste batch (via product_id, inte product_variant_id)
         $batchStmt = $pdo->prepare("
             SELECT
                 b.id as batch_id,
@@ -114,13 +111,9 @@ if ($selectedGtin) {
                 b.po_number,
                 b.production_date,
                 b.quantity,
-                b._status,
-                pv.sku,
-                pv.size,
-                pv.color_name
+                b._status
             FROM batches b
-            JOIN product_variants pv ON b.product_variant_id = pv.id
-            WHERE pv.product_id = ?
+            WHERE b.product_id = ?
             ORDER BY b.production_date DESC
             LIMIT 1
         ");
@@ -133,43 +126,37 @@ if ($selectedGtin) {
         $careInfo = $careStmt->fetch();
 
         // Compliance Information
-        $complianceStmt = $pdo->prepare("SELECT * FROM compliance_information WHERE product_id = ?");
+        $complianceStmt = $pdo->prepare("SELECT * FROM compliance_info WHERE product_id = ?");
         $complianceStmt->execute([$productId]);
         $complianceInfo = $complianceStmt->fetch();
 
-        // Certifications
-        $certStmt = $pdo->prepare("SELECT * FROM certifications WHERE product_id = ?");
+        // Product Certifications
+        $certStmt = $pdo->prepare("SELECT * FROM product_certifications WHERE product_id = ?");
         $certStmt->execute([$productId]);
         $certifications = $certStmt->fetchAll();
 
-        // Chemical Compliance
-        $chemStmt = $pdo->prepare("SELECT * FROM chemical_compliance WHERE product_id = ?");
-        $chemStmt->execute([$productId]);
-        $chemicalCompliance = $chemStmt->fetchAll();
-
         // Circularity
-        $circStmt = $pdo->prepare("SELECT * FROM circularity_information WHERE product_id = ?");
+        $circStmt = $pdo->prepare("SELECT * FROM circularity_info WHERE product_id = ?");
         $circStmt->execute([$productId]);
         $circularityInfo = $circStmt->fetch();
 
         // Sustainability
-        $sustStmt = $pdo->prepare("SELECT * FROM sustainability_information WHERE product_id = ?");
+        $sustStmt = $pdo->prepare("SELECT * FROM sustainability_info WHERE product_id = ?");
         $sustStmt->execute([$productId]);
         $sustainabilityInfo = $sustStmt->fetch();
 
-        // Om vi har en batch, hämta material och leverantörer
+        // Om vi har en batch, hämta material
         if ($latestBatch) {
             $batchId = $latestBatch['batch_id'];
 
             // Batch Materials
             $matStmt = $pdo->prepare("
                 SELECT
-                    bm.component_type,
-                    bm.quantity_meters,
+                    bm.component,
                     fm.id as factory_material_id,
                     fm.material_name,
                     fm.material_type,
-                    fm._internal_code
+                    fm.description as material_description
                 FROM batch_materials bm
                 JOIN factory_materials fm ON bm.factory_material_id = fm.id
                 WHERE bm.batch_id = ?
@@ -183,7 +170,7 @@ if ($selectedGtin) {
 
                 // Compositions
                 $compStmt = $pdo->prepare("
-                    SELECT fiber_type, percentage, fiber_source, material_trademark, is_recycled, recycled_percentage, recycled_source
+                    SELECT content_name, content_value, content_source, recycled, recycled_percentage, recycled_input_source
                     FROM factory_material_compositions WHERE factory_material_id = ?
                 ");
                 $compStmt->execute([$fmId]);
@@ -191,7 +178,7 @@ if ($selectedGtin) {
 
                 // Material Certifications
                 $mcertStmt = $pdo->prepare("
-                    SELECT certification_type, certification_other, certificate_number, valid_until
+                    SELECT certification, certification_id, valid_until
                     FROM factory_material_certifications WHERE factory_material_id = ?
                 ");
                 $mcertStmt->execute([$fmId]);
@@ -199,29 +186,13 @@ if ($selectedGtin) {
 
                 // Supply Chain
                 $scStmt = $pdo->prepare("
-                    SELECT process_stage, supplier_name, country
+                    SELECT process_step, facility_name, country
                     FROM factory_material_supply_chain WHERE factory_material_id = ? ORDER BY sequence
                 ");
                 $scStmt->execute([$fmId]);
                 $material['supply_chain'] = $scStmt->fetchAll();
             }
             unset($material);
-
-            // Batch Suppliers
-            $bsStmt = $pdo->prepare("
-                SELECT
-                    s.supplier_name,
-                    s.supplier_location,
-                    s.facility_registry,
-                    s.facility_identifier,
-                    bs.production_stage,
-                    bs.country_of_origin
-                FROM batch_suppliers bs
-                JOIN suppliers s ON bs.supplier_id = s.id
-                WHERE bs.batch_id = ?
-            ");
-            $bsStmt->execute([$batchId]);
-            $batchSuppliers = $bsStmt->fetchAll();
         }
     }
 }
@@ -229,7 +200,7 @@ if ($selectedGtin) {
 // Gruppera varianter per färg
 $variantsByColor = [];
 foreach ($variants as $v) {
-    $color = $v['color_name'];
+    $color = $v['color_brand'] ?? 'Okänd';
     if (!isset($variantsByColor[$color])) {
         $variantsByColor[$color] = [];
     }
@@ -273,7 +244,7 @@ foreach ($variants as $v) {
                         <?php foreach ($products as $product): ?>
                         <?php $gs1Link = $gs1BaseUrl . $product['gtin']; ?>
                         <option value="<?= htmlspecialchars($gs1Link) ?>" <?= $selectedGtin == $product['gtin'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($gs1Link) ?>
+                            <?= htmlspecialchars($gs1Link) ?> (<?= htmlspecialchars($product['product_name']) ?>)
                         </option>
                         <?php endforeach; ?>
                     </select>
@@ -333,11 +304,11 @@ foreach ($variants as $v) {
                 </div>
                 <div>
                     <div class="label">Handlare</div>
-                    <div class="value"><?= htmlspecialchars($productData['trader_name'] ?? '-') ?></div>
+                    <div class="value"><?= htmlspecialchars($productData['trader'] ?? '-') ?></div>
                 </div>
                 <div class="col-span-2">
                     <div class="label">Handlaradress</div>
-                    <div class="value"><?= htmlspecialchars($productData['trader_address'] ?? '-') ?></div>
+                    <div class="value"><?= htmlspecialchars($productData['trader_location'] ?? '-') ?></div>
                 </div>
             </div>
         </div>
@@ -350,27 +321,6 @@ foreach ($variants as $v) {
             <p class="text-sm text-gray-500 mb-3 italic">Baserat på senaste batch: <?= htmlspecialchars($latestBatch['batch_number']) ?></p>
             <?php endif; ?>
 
-            <?php if ($batchSuppliers): ?>
-            <div class="mb-4">
-                <div class="label mb-2">Produktionsleverantörer</div>
-                <?php foreach ($batchSuppliers as $bs): ?>
-                <div class="bg-amber-50 rounded p-2 mb-2">
-                    <div class="font-medium"><?= htmlspecialchars($bs['supplier_name']) ?></div>
-                    <div class="text-sm text-gray-600">
-                        <?= htmlspecialchars($bs['production_stage']) ?> |
-                        Land: <?= htmlspecialchars($bs['country_of_origin']) ?>
-                        <?php if ($bs['facility_identifier']): ?>
-                        | <?= $bs['facility_registry'] ?>: <?= htmlspecialchars($bs['facility_identifier']) ?>
-                        <?php endif; ?>
-                    </div>
-                    <?php if ($bs['supplier_location']): ?>
-                    <div class="text-xs text-gray-500"><?= htmlspecialchars($bs['supplier_location']) ?></div>
-                    <?php endif; ?>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
-
             <?php foreach ($batchMaterials as $mat): ?>
             <?php if (!empty($mat['supply_chain'])): ?>
             <div class="mb-3">
@@ -378,8 +328,8 @@ foreach ($variants as $v) {
                 <div class="flex flex-wrap gap-2 text-sm">
                     <?php foreach ($mat['supply_chain'] as $i => $sc): ?>
                     <div class="bg-gray-100 rounded px-2 py-1">
-                        <span class="text-gray-500"><?= ucfirst(str_replace('_', '/', $sc['process_stage'])) ?>:</span>
-                        <?= htmlspecialchars($sc['supplier_name'] ?? 'Okänd') ?>
+                        <span class="text-gray-500"><?= ucfirst($sc['process_step']) ?>:</span>
+                        <?= htmlspecialchars($sc['facility_name'] ?? 'Okänd') ?>
                         <span class="text-xs text-gray-400">(<?= $sc['country'] ?>)</span>
                     </div>
                     <?php if ($i < count($mat['supply_chain']) - 1): ?>
@@ -391,7 +341,7 @@ foreach ($variants as $v) {
             <?php endif; ?>
             <?php endforeach; ?>
 
-            <?php if (!$batchSuppliers && !$batchMaterials): ?>
+            <?php if (!$batchMaterials): ?>
             <p class="text-gray-500 italic">Ingen batch-data tillgänglig för denna produkt.</p>
             <?php endif; ?>
         </div>
@@ -418,7 +368,7 @@ foreach ($variants as $v) {
                 </div>
                 <div>
                     <div class="label">Plaggtyp</div>
-                    <div class="value"><?= htmlspecialchars($productData['garment_type'] ?? '-') ?></div>
+                    <div class="value"><?= htmlspecialchars($productData['type_item'] ?? '-') ?></div>
                 </div>
                 <div>
                     <div class="label">Kön</div>
@@ -426,7 +376,7 @@ foreach ($variants as $v) {
                 </div>
                 <div>
                     <div class="label">Vikt</div>
-                    <div class="value"><?= $productData['weight_kg'] ? $productData['weight_kg'] . ' kg' : '-' ?></div>
+                    <div class="value"><?= $productData['net_weight'] ? $productData['net_weight'] . ' kg' : '-' ?></div>
                 </div>
                 <div>
                     <div class="label">HS-kod</div>
@@ -465,10 +415,11 @@ foreach ($variants as $v) {
             <div class="bg-cyan-50 rounded-lg p-3 mb-3">
                 <div class="font-medium text-cyan-800">
                     <?= htmlspecialchars($mat['material_name']) ?>
-                    <span class="text-sm font-normal text-gray-500">(<?= $mat['component_type'] ?>)</span>
+                    <?php if ($mat['component']): ?>
+                    <span class="text-sm font-normal text-gray-500">(<?= $mat['component'] ?>)</span>
+                    <?php endif; ?>
                 </div>
                 <div class="text-sm text-gray-600">
-                    Kod: <?= htmlspecialchars($mat['_internal_code']) ?> |
                     Typ: <?= $mat['material_type'] ?>
                 </div>
 
@@ -478,8 +429,8 @@ foreach ($variants as $v) {
                     <div class="flex flex-wrap gap-2">
                         <?php foreach ($mat['compositions'] as $comp): ?>
                         <span class="bg-white rounded px-2 py-1 text-sm">
-                            <?= htmlspecialchars($comp['fiber_type']) ?> <?= $comp['percentage'] ?>%
-                            <?php if ($comp['is_recycled']): ?>
+                            <?= htmlspecialchars($comp['content_name']) ?> <?= $comp['content_value'] ?>%
+                            <?php if ($comp['recycled']): ?>
                             <span class="text-green-600">♻️</span>
                             <?php endif; ?>
                         </span>
@@ -493,10 +444,7 @@ foreach ($variants as $v) {
                     <div class="text-xs text-gray-500 mb-1">Materialcertifieringar:</div>
                     <?php foreach ($mat['certifications'] as $cert): ?>
                     <span class="inline-block bg-green-100 text-green-800 rounded px-2 py-1 text-xs mr-1">
-                        <?= $cert['certification_type'] ?>
-                        <?php if ($cert['certification_other']): ?>
-                        (<?= htmlspecialchars($cert['certification_other']) ?>)
-                        <?php endif; ?>
+                        <?= $cert['certification'] ?>
                     </span>
                     <?php endforeach; ?>
                 </div>
@@ -536,7 +484,7 @@ foreach ($variants as $v) {
                     <div class="label">Skötselinstruktion</div>
                     <div class="value"><?= htmlspecialchars($careInfo['care_text'] ?? '-') ?></div>
                 </div>
-                <?php if ($careInfo['safety_information']): ?>
+                <?php if (!empty($careInfo['safety_information'])): ?>
                 <div>
                     <div class="label">Säkerhetsinformation</div>
                     <div class="value text-orange-600"><?= htmlspecialchars($careInfo['safety_information']) ?></div>
@@ -553,14 +501,14 @@ foreach ($variants as $v) {
             <?php if ($complianceInfo): ?>
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
-                    <div class="label">Innehåller SVHC</div>
-                    <div class="value"><?= $complianceInfo['contains_svhc'] ? '⚠️ Ja' : '✅ Nej' ?></div>
+                    <div class="label">Innehåller skadliga ämnen</div>
+                    <div class="value"><?= ($complianceInfo['harmful_substances'] ?? '') === 'Yes' ? '⚠️ Ja' : '✅ Nej' ?></div>
                 </div>
                 <div>
                     <div class="label">Avger mikrofiber</div>
-                    <div class="value"><?= $complianceInfo['sheds_microfibers'] ? '⚠️ Ja' : '✅ Nej' ?></div>
+                    <div class="value"><?= ($complianceInfo['microfibers'] ?? '') === 'Yes' ? '⚠️ Ja' : '✅ Nej' ?></div>
                 </div>
-                <?php if ($complianceInfo['traceability_provider']): ?>
+                <?php if (!empty($complianceInfo['traceability_provider'])): ?>
                 <div>
                     <div class="label">Spårbarhetsleverantör</div>
                     <div class="value"><?= htmlspecialchars($complianceInfo['traceability_provider']) ?></div>
@@ -576,25 +524,12 @@ foreach ($variants as $v) {
                     <?php foreach ($certifications as $cert): ?>
                     <span class="bg-emerald-100 text-emerald-800 rounded px-3 py-1 text-sm">
                         <?= $cert['certification_name'] ?>
-                        <?php if ($cert['certification_other']): ?>
+                        <?php if (!empty($cert['certification_other'])): ?>
                         (<?= htmlspecialchars($cert['certification_other']) ?>)
                         <?php endif; ?>
-                        <?php if ($cert['valid_until']): ?>
+                        <?php if (!empty($cert['valid_until'])): ?>
                         <span class="text-xs text-gray-500">→ <?= $cert['valid_until'] ?></span>
                         <?php endif; ?>
-                    </span>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <?php if ($chemicalCompliance): ?>
-            <div>
-                <div class="label mb-2">Kemikaliecompliance</div>
-                <div class="flex flex-wrap gap-2">
-                    <?php foreach ($chemicalCompliance as $chem): ?>
-                    <span class="bg-blue-100 text-blue-800 rounded px-3 py-1 text-sm">
-                        <?= htmlspecialchars($chem['compliance_standard']) ?>
                     </span>
                     <?php endforeach; ?>
                 </div>
@@ -607,31 +542,31 @@ foreach ($variants as $v) {
         <div class="card border-l-4 border-lime-500">
             <div class="card-title text-lime-700">♻️ CIRKULARITET <span class="text-xs font-normal text-gray-400">(600-serien)</span></div>
             <div class="grid grid-cols-1 gap-4">
-                <?php if ($circularityInfo['recyclability']): ?>
+                <?php if (!empty($circularityInfo['recyclability'])): ?>
                 <div>
                     <div class="label">Återvinningsbarhet</div>
                     <div class="value"><?= htmlspecialchars($circularityInfo['recyclability']) ?></div>
                 </div>
                 <?php endif; ?>
-                <?php if ($circularityInfo['take_back_instructions']): ?>
+                <?php if (!empty($circularityInfo['take_back_instructions'])): ?>
                 <div>
                     <div class="label">Returinstruktioner</div>
                     <div class="value"><?= htmlspecialchars($circularityInfo['take_back_instructions']) ?></div>
                 </div>
                 <?php endif; ?>
-                <?php if ($circularityInfo['recycling_instructions']): ?>
+                <?php if (!empty($circularityInfo['recycling_instructions'])): ?>
                 <div>
                     <div class="label">Återvinningsinstruktioner</div>
                     <div class="value"><?= htmlspecialchars($circularityInfo['recycling_instructions']) ?></div>
                 </div>
                 <?php endif; ?>
-                <?php if ($circularityInfo['repair_instructions']): ?>
+                <?php if (!empty($circularityInfo['repair_instructions'])): ?>
                 <div>
                     <div class="label">Reparationsinstruktioner</div>
                     <div class="value"><?= htmlspecialchars($circularityInfo['repair_instructions']) ?></div>
                 </div>
                 <?php endif; ?>
-                <?php if ($circularityInfo['circular_design_strategy']): ?>
+                <?php if (!empty($circularityInfo['circular_design_strategy'])): ?>
                 <div>
                     <div class="label">Cirkulär designstrategi</div>
                     <div class="value"><?= ucfirst(str_replace('_', ' ', $circularityInfo['circular_design_strategy'])) ?></div>
@@ -646,14 +581,14 @@ foreach ($variants as $v) {
         <div class="card border-l-4 border-teal-500">
             <div class="card-title text-teal-700">🌱 HÅLLBARHET <span class="text-xs font-normal text-gray-400">(650-serien)</span></div>
 
-            <?php if ($sustainabilityInfo['brand_statement']): ?>
+            <?php if (!empty($sustainabilityInfo['brand_statement'])): ?>
             <div class="mb-4">
                 <div class="label">Varumärkesdeklaration</div>
                 <div class="value italic">"<?= htmlspecialchars($sustainabilityInfo['brand_statement']) ?>"</div>
             </div>
             <?php endif; ?>
 
-            <?php if ($sustainabilityInfo['environmental_footprint']): ?>
+            <?php if (!empty($sustainabilityInfo['environmental_footprint'])): ?>
             <?php $footprint = json_decode($sustainabilityInfo['environmental_footprint'], true); ?>
             <?php if ($footprint): ?>
             <div>

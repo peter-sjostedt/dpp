@@ -101,10 +101,10 @@ Auth::requireLogin();
         <a href="test-items.php" style="background: #C62828;">7. Items (Fas 2)<small>Per plagg</small></a>
     </div>
 
-    <!-- Relations -->
-    <p style="margin-top: 30px; opacity: 0.7; font-size: 14px;">RELATIONER</p>
+    <!-- Relations (Tenant API) -->
+    <p style="margin-top: 30px; opacity: 0.7; font-size: 14px;">RELATIONER <span class="tenant-type-badge badge-brand">Brand</span></p>
     <div class="grid">
-        <a href="test-brand-suppliers.php" style="background: #00838F;">Brand-Supplier<small>Hantera affärsrelationer</small></a>
+        <a href="test-brand-suppliers.php" style="background: #00838F;">Brand-Supplier<small>Testa tenant-API (X-API-Key)</small></a>
     </div>
 
     <!-- DPP Output -->
@@ -122,10 +122,11 @@ Auth::requireLogin();
     </div>
 
     <!-- Admin -->
-    <p style="margin-top: 30px; opacity: 0.7; font-size: 14px;">ADMINISTRATION</p>
+    <p style="margin-top: 30px; opacity: 0.7; font-size: 14px;">ADMINISTRATION <span style="font-size: 10px; background: #37474f; padding: 2px 6px; border-radius: 8px;">Session Auth</span></p>
     <div class="grid">
-        <a href="admin-tenants.php" style="background: #37474f;">Hantera Tenants<small>Skapa brands, suppliers och relationer</small></a>
-        <a href="reset-database.php" style="background: #b71c1c;">Återställ testdata<small>Radera allt och ladda om testdata</small></a>
+        <a href="test-all-api.php" style="background: #4CAF50;">Kör API-tester<small>Automatisk test av ALLA endpoints</small></a>
+        <a href="admin-tenants.php" style="background: #37474f;">Hantera Tenants<small>Skapa brands/suppliers (direktåtkomst DB)</small></a>
+        <a href="reset-database.php" style="background: #37474f;">Databashantering<small>Återställ schema / Ladda testdata</small></a>
     </div>
 
     <script>
@@ -182,21 +183,37 @@ Auth::requireLogin();
                         select.appendChild(option);
                     });
 
-                    // Restore saved selection if same tenant type
+                    // Restore saved selection if same tenant type and key exists in list
                     const savedType = localStorage.getItem('dpp_tenant_type');
                     const savedKey = localStorage.getItem('dpp_api_key');
+                    let foundSavedKey = false;
+
                     if (savedType === currentTenantType && savedKey) {
                         for (let i = 0; i < select.options.length; i++) {
                             if (select.options[i].value === savedKey) {
                                 select.selectedIndex = i;
                                 document.getElementById('api_key_display').textContent = 'API-nyckel: ' + savedKey;
+                                foundSavedKey = true;
                                 break;
                             }
                         }
                     }
+
+                    // Clear saved tenant if switching types or key not found
+                    if (!foundSavedKey) {
+                        localStorage.removeItem('dpp_api_key');
+                        localStorage.removeItem('dpp_tenant_id');
+                        localStorage.removeItem('dpp_tenant_name');
+                        document.getElementById('api_key_display').textContent = 'API-nyckel: (välj tenant)';
+                    }
                 } else {
                     select.innerHTML = '<option value="">-- Inga ' +
                         (currentTenantType === 'brand' ? 'varumärken' : 'fabriker') + ' hittades --</option>';
+                    // Clear saved tenant when no options available
+                    localStorage.removeItem('dpp_api_key');
+                    localStorage.removeItem('dpp_tenant_id');
+                    localStorage.removeItem('dpp_tenant_name');
+                    document.getElementById('api_key_display').textContent = 'API-nyckel: (välj tenant)';
                 }
             } catch (err) {
                 console.error('Failed to load tenants:', err);

@@ -28,8 +28,7 @@ class ProductController extends TenantAwareController
                 'SELECT DISTINCT p.*, b.brand_name
                  FROM products p
                  LEFT JOIN brands b ON p.brand_id = b.id
-                 JOIN product_variants pv ON pv.product_id = p.id
-                 JOIN batches bat ON bat.product_variant_id = pv.id
+                 JOIN batches bat ON bat.product_id = p.id
                  JOIN items i ON i.batch_id = bat.id
                  WHERE p.brand_id = ? AND p._is_active = TRUE
                  ORDER BY p.product_name'
@@ -116,7 +115,8 @@ class ProductController extends TenantAwareController
         }
 
         $stmt = $this->db->prepare(
-            'SELECT p.*, b.brand_name, b.logo_url as brand_logo, b.parent_company, b.trader_name, b.trader_address
+            'SELECT p.*, b.brand_name, b.logo_url as brand_logo, b.parent_company,
+                    b.trader as trader_name, b.trader_location as trader_address
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
              WHERE p.id = ?'
@@ -129,13 +129,12 @@ class ProductController extends TenantAwareController
             return;
         }
 
-        // Include related information
+        // Include related information (using correct table names)
         $product['care_information'] = $this->getCareInfo($productId);
         $product['compliance_information'] = $this->getComplianceInfo($productId);
         $product['circularity_information'] = $this->getCircularityInfo($productId);
         $product['sustainability_information'] = $this->getSustainabilityInfo($productId);
-        $product['certifications'] = $this->getCertifications($productId);
-        $product['chemical_compliance'] = $this->getChemicalCompliance($productId);
+        $product['components'] = $this->getProductComponents($productId);
 
         Response::success($product);
     }
@@ -161,16 +160,17 @@ class ProductController extends TenantAwareController
 
         $stmt = $this->db->prepare(
             'INSERT INTO products (
-                brand_id, gtin, product_name, description, photo_url,
+                brand_id, gtin_type, gtin, product_name, description, photo_url,
                 article_number, commodity_code_system, commodity_code_number,
                 year_of_sale, season_of_sale, price_currency, msrp, resale_price,
-                category, product_group, line, garment_type, age_group, gender,
-                market_segment, water_properties, weight_kg, _is_active,
+                category, product_group, type_line_concept, type_item, age_group, gender,
+                market_segment, water_properties, net_weight, weight_unit, _is_active,
                 data_carrier_type, data_carrier_material, data_carrier_location
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $brandId,
+            $data['gtin_type'] ?? null,
             $data['gtin'] ?? null,
             $data['product_name'],
             $data['description'] ?? null,
@@ -185,13 +185,14 @@ class ProductController extends TenantAwareController
             $data['resale_price'] ?? null,
             $data['category'] ?? null,
             $data['product_group'] ?? null,
-            $data['line'] ?? null,
-            $data['garment_type'] ?? null,
+            $data['type_line_concept'] ?? null,
+            $data['type_item'] ?? null,
             $data['age_group'] ?? null,
             $data['gender'] ?? null,
             $data['market_segment'] ?? null,
             $data['water_properties'] ?? null,
-            $data['weight_kg'] ?? null,
+            $data['net_weight'] ?? null,
+            $data['weight_unit'] ?? 'kg',
             $data['_is_active'] ?? true,
             $data['data_carrier_type'] ?? null,
             $data['data_carrier_material'] ?? null,
@@ -217,6 +218,7 @@ class ProductController extends TenantAwareController
 
         $stmt = $this->db->prepare(
             'UPDATE products SET
+                gtin_type = COALESCE(?, gtin_type),
                 gtin = COALESCE(?, gtin),
                 product_name = COALESCE(?, product_name),
                 description = COALESCE(?, description),
@@ -231,13 +233,14 @@ class ProductController extends TenantAwareController
                 resale_price = COALESCE(?, resale_price),
                 category = COALESCE(?, category),
                 product_group = COALESCE(?, product_group),
-                line = COALESCE(?, line),
-                garment_type = COALESCE(?, garment_type),
+                type_line_concept = COALESCE(?, type_line_concept),
+                type_item = COALESCE(?, type_item),
                 age_group = COALESCE(?, age_group),
                 gender = COALESCE(?, gender),
                 market_segment = COALESCE(?, market_segment),
                 water_properties = COALESCE(?, water_properties),
-                weight_kg = COALESCE(?, weight_kg),
+                net_weight = COALESCE(?, net_weight),
+                weight_unit = COALESCE(?, weight_unit),
                 _is_active = COALESCE(?, _is_active),
                 data_carrier_type = COALESCE(?, data_carrier_type),
                 data_carrier_material = COALESCE(?, data_carrier_material),
@@ -245,6 +248,7 @@ class ProductController extends TenantAwareController
              WHERE id = ?'
         );
         $stmt->execute([
+            $data['gtin_type'] ?? null,
             $data['gtin'] ?? null,
             $data['product_name'] ?? null,
             $data['description'] ?? null,
@@ -259,13 +263,14 @@ class ProductController extends TenantAwareController
             $data['resale_price'] ?? null,
             $data['category'] ?? null,
             $data['product_group'] ?? null,
-            $data['line'] ?? null,
-            $data['garment_type'] ?? null,
+            $data['type_line_concept'] ?? null,
+            $data['type_item'] ?? null,
             $data['age_group'] ?? null,
             $data['gender'] ?? null,
             $data['market_segment'] ?? null,
             $data['water_properties'] ?? null,
-            $data['weight_kg'] ?? null,
+            $data['net_weight'] ?? null,
+            $data['weight_unit'] ?? null,
             $data['_is_active'] ?? null,
             $data['data_carrier_type'] ?? null,
             $data['data_carrier_material'] ?? null,
@@ -293,7 +298,7 @@ class ProductController extends TenantAwareController
         Response::success(['deleted' => $productId]);
     }
 
-    // DPP Export - complete digital product passport
+    // DPP Export - complete digital product passport (legacy endpoint)
     public function getDpp(array $params): void
     {
         $productId = (int) $params['id'];
@@ -313,7 +318,8 @@ class ProductController extends TenantAwareController
         }
 
         $stmt = $this->db->prepare(
-            'SELECT p.*, b.brand_name, b.logo_url, b.sub_brand, b.parent_company, b.trader_name, b.trader_address
+            'SELECT p.*, b.brand_name, b.logo_url, b.sub_brand, b.parent_company,
+                    b.trader as trader_name, b.trader_location as trader_address
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
              WHERE p.id = ?'
@@ -332,8 +338,7 @@ class ProductController extends TenantAwareController
             'compliance_information' => $this->getComplianceInfo($productId),
             'circularity_information' => $this->getCircularityInfo($productId),
             'sustainability_information' => $this->getSustainabilityInfo($productId),
-            'certifications' => $this->getCertifications($productId),
-            'chemical_compliance' => $this->getChemicalCompliance($productId),
+            'components' => $this->getProductComponents($productId),
             'variants' => $this->getVariantsWithDetails($productId)
         ];
 
@@ -350,42 +355,35 @@ class ProductController extends TenantAwareController
 
     private function getComplianceInfo(int|string $productId): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM compliance_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM compliance_info WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
     private function getCircularityInfo(int|string $productId): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM circularity_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM circularity_info WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
     private function getSustainabilityInfo(int|string $productId): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM sustainability_information WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM sustainability_info WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getCertifications(int|string $productId): array
+    private function getProductComponents(int|string $productId): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM certifications WHERE product_id = ? ORDER BY certification_name');
-        $stmt->execute([$productId]);
-        return $stmt->fetchAll();
-    }
-
-    private function getChemicalCompliance(int|string $productId): array
-    {
-        $stmt = $this->db->prepare('SELECT * FROM chemical_compliance WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM product_components WHERE product_id = ? ORDER BY component');
         $stmt->execute([$productId]);
         return $stmt->fetchAll();
     }
 
     private function getVariantsWithDetails(int|string $productId): array
     {
-        $stmt = $this->db->prepare('SELECT * FROM product_variants WHERE product_id = ? ORDER BY sku');
+        $stmt = $this->db->prepare('SELECT * FROM product_variants WHERE product_id = ? ORDER BY item_number');
         $stmt->execute([$productId]);
         $variants = $stmt->fetchAll();
 
@@ -394,9 +392,9 @@ class ProductController extends TenantAwareController
                 'SELECT b.*,
                         (SELECT COUNT(*) FROM items i WHERE i.batch_id = b.id) as item_count
                  FROM batches b
-                 WHERE b.product_variant_id = ?'
+                 WHERE b.product_id = ?'
             );
-            $stmt->execute([$variant['id']]);
+            $stmt->execute([$productId]);
             $variant['batches'] = $stmt->fetchAll();
         }
 

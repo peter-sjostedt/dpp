@@ -196,14 +196,11 @@ class BrandSupplierController extends TenantAwareController
 
         $id = (int) $params['id'];
 
-        // Check if there are any batches using this relationship
+        // Check if there are any batches using this supplier
         $stmt = $this->db->prepare(
-            'SELECT COUNT(*) as count FROM batch_suppliers bs
-             JOIN brand_suppliers brs ON bs.supplier_id = (
-                 SELECT supplier_id FROM brand_suppliers WHERE id = ?
-             )
-             JOIN batches b ON bs.batch_id = b.id
-             WHERE b.brand_id = ?'
+            'SELECT COUNT(*) as count FROM batches b
+             WHERE b.supplier_id = (SELECT supplier_id FROM brand_suppliers WHERE id = ?)
+             AND b.brand_id = ?'
         );
         $stmt->execute([$id, TenantContext::getBrandId()]);
         $usage = $stmt->fetch();

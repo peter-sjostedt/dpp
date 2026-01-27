@@ -7,6 +7,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS dpp_exports;
 DROP TABLE IF EXISTS sustainability_info;
 DROP TABLE IF EXISTS circularity_info;
+DROP TABLE IF EXISTS product_certifications;
 DROP TABLE IF EXISTS compliance_info;
 DROP TABLE IF EXISTS care_information;
 
@@ -60,6 +61,26 @@ CREATE TABLE compliance_info (
 
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     INDEX idx_compliance_product (product_id)
+);
+
+-- ============================================
+-- PRODUCT CERTIFICATIONS
+-- ============================================
+
+CREATE TABLE product_certifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+
+    certification_name VARCHAR(100) NOT NULL COMMENT '501,00 - GOTS, GRS, Oeko-Tex, Fair Trade',
+    certification_other VARCHAR(255) COMMENT 'Custom certification name if Other selected',
+    validation_document_url VARCHAR(500) COMMENT 'Link to certificate/validation document',
+    valid_until DATE COMMENT 'Certificate expiration date',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    INDEX idx_certifications_product (product_id)
 );
 
 -- ============================================
