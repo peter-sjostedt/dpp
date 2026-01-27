@@ -1,30 +1,52 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class ItemController {
-    private \PDO $db;
+/**
+ * Item controller with multi-tenant access control.
+ * - As Brand: Full CRUD on own items (filtered by brand_id)
+ * - As Supplier: No access to items
+ */
+class ItemController extends TenantAwareController
+{
+    public function index(array $params): void
+    {
+        $this->requireBrand();
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
-    }
+        $brandId = TenantContext::getBrandId();
+        $batchId = (int) $params['batchId'];
 
-    public function index(array $params): void {
+        // Verify batch belongs to brand
+        if (!$this->verifyBatchOwnership($batchId)) {
+            Response::error('Batch not found', 404);
+            return;
+        }
+
         $stmt = $this->db->prepare(
             'SELECT i.*, b.batch_number
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
-             WHERE i.batch_id = ?
+             WHERE i.batch_id = ? AND i.brand_id = ?
              ORDER BY i.created_at DESC'
         );
-        $stmt->execute([$params['batchId']]);
+        $stmt->execute([$batchId, $brandId]);
         Response::success($stmt->fetchAll());
     }
 
-    public function show(array $params): void {
+    public function show(array $params): void
+    {
+        $this->requireBrand();
+
+        $itemId = (int) $params['id'];
+
+        if (!$this->verifyItemOwnership($itemId)) {
+            Response::error('Item not found', 404);
+            return;
+        }
+
         $stmt = $this->db->prepare(
             'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
                     p.data_carrier_type, p.data_carrier_material, p.data_carrier_location
@@ -34,52 +56,66 @@ class ItemController {
              LEFT JOIN products p ON pv.product_id = p.id
              WHERE i.id = ?'
         );
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$itemId]);
         $item = $stmt->fetch();
 
         if (!$item) {
             Response::error('Item not found', 404);
+            return;
         }
+
         Response::success($item);
     }
 
-    public function showBySgtin(array $params): void {
+    public function showBySgtin(array $params): void
+    {
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+
         $stmt = $this->db->prepare(
             'SELECT i.*, b.batch_number, pv.sku, pv.size, pv.color_name, p.product_name,
                     p.data_carrier_type, p.data_carrier_material, p.data_carrier_location,
-                    br.brand_name, c.name as company_name
+                    br.brand_name
              FROM items i
              LEFT JOIN batches b ON i.batch_id = b.id
              LEFT JOIN product_variants pv ON b.product_variant_id = pv.id
              LEFT JOIN products p ON pv.product_id = p.id
              LEFT JOIN brands br ON p.brand_id = br.id
-             LEFT JOIN companies c ON br.company_id = c.id
-             WHERE i.sgtin = ?'
+             WHERE i.sgtin = ? AND i.brand_id = ?'
         );
-        $stmt->execute([$params['sgtin']]);
+        $stmt->execute([$params['sgtin'], $brandId]);
         $item = $stmt->fetch();
 
         if (!$item) {
             Response::error('Item not found', 404);
+            return;
         }
+
         Response::success($item);
     }
 
-    public function create(array $params): void {
+    public function create(array $params): void
+    {
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+        $batchId = (int) $params['batchId'];
         $data = Validator::getJsonBody();
 
-        // Verify batch exists and get product GTIN
+        // Verify batch exists and belongs to brand, get product GTIN
         $stmt = $this->db->prepare(
             'SELECT b.id, p.gtin
              FROM batches b
              JOIN product_variants pv ON b.product_variant_id = pv.id
              JOIN products p ON pv.product_id = p.id
-             WHERE b.id = ?'
+             WHERE b.id = ? AND b.brand_id = ?'
         );
-        $stmt->execute([$params['batchId']]);
+        $stmt->execute([$batchId, $brandId]);
         $batch = $stmt->fetch();
         if (!$batch) {
             Response::error('Batch not found', 404);
+            return;
         }
 
         // Generate sgtin if not provided
@@ -90,63 +126,72 @@ class ItemController {
         $stmt->execute([$sgtin]);
         if ($stmt->fetch()) {
             Response::error('SGTIN already exists', 400);
+            return;
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO items (batch_id, product_variant_id, tid, sgtin)
-             SELECT ?, product_variant_id, ?, ? FROM batches WHERE id = ?'
+            'INSERT INTO items (brand_id, batch_id, product_variant_id, tid, sgtin)
+             SELECT ?, ?, product_variant_id, ?, ? FROM batches WHERE id = ?'
         );
         $stmt->execute([
-            $params['batchId'],
+            $brandId,
+            $batchId,
             $data['tid'] ?? null,
             $sgtin,
-            $params['batchId']
+            $batchId
         ]);
 
         $id = $this->db->lastInsertId();
         $this->show(['id' => $id]);
     }
 
-    public function createBulk(array $params): void {
+    public function createBulk(array $params): void
+    {
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+        $batchId = (int) $params['batchId'];
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['quantity'])) {
             Response::error($error);
+            return;
         }
 
         $quantity = (int)$data['quantity'];
         if ($quantity < 1 || $quantity > 1000) {
             Response::error('Quantity must be between 1 and 1000', 400);
+            return;
         }
 
-        // Verify batch exists and get product GTIN + variant id
+        // Verify batch exists and belongs to brand
         $stmt = $this->db->prepare(
             'SELECT b.id, b.product_variant_id, p.gtin
              FROM batches b
              JOIN product_variants pv ON b.product_variant_id = pv.id
              JOIN products p ON pv.product_id = p.id
-             WHERE b.id = ?'
+             WHERE b.id = ? AND b.brand_id = ?'
         );
-        $stmt->execute([$params['batchId']]);
+        $stmt->execute([$batchId, $brandId]);
         $batch = $stmt->fetch();
         if (!$batch) {
             Response::error('Batch not found', 404);
+            return;
         }
-
-        $prefix = $data['prefix'] ?? 'DPP';
 
         $createdIds = [];
         $this->db->beginTransaction();
 
         try {
             $stmt = $this->db->prepare(
-                'INSERT INTO items (batch_id, product_variant_id, sgtin) VALUES (?, ?, ?)'
+                'INSERT INTO items (brand_id, batch_id, product_variant_id, sgtin) VALUES (?, ?, ?, ?)'
             );
 
             for ($i = 0; $i < $quantity; $i++) {
                 $sgtin = $this->generateSgtin($batch['gtin']);
                 $stmt->execute([
-                    $params['batchId'],
+                    $brandId,
+                    $batchId,
                     $batch['product_variant_id'],
                     $sgtin
                 ]);
@@ -167,20 +212,25 @@ class ItemController {
         }
     }
 
-    public function delete(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM items WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+    public function delete(array $params): void
+    {
+        $this->requireBrand();
+
+        $itemId = (int) $params['id'];
+
+        if (!$this->verifyItemOwnership($itemId)) {
             Response::error('Item not found', 404);
+            return;
         }
 
         $stmt = $this->db->prepare('DELETE FROM items WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$itemId]);
 
-        Response::success(['deleted' => (int)$params['id']]);
+        Response::success(['deleted' => $itemId]);
     }
 
-    private function generateSgtin(string $gtin): string {
+    private function generateSgtin(string $gtin): string
+    {
         // Format: GTIN.NNNNNN (6-digit serial)
         $serial = str_pad((string)random_int(1, 999999), 6, '0', STR_PAD_LEFT);
         return $gtin . '.' . $serial;

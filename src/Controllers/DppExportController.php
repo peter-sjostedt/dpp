@@ -1,26 +1,22 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 
-class DppExportController {
-    private \PDO $db;
-
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
-    }
+class DppExportController extends TenantAwareController {
 
     /**
      * Preview complete DPP data for a product
      */
     public function preview(array $params): void {
+        // DPP export is brand-only
+        $this->requireBrand();
+
         $productId = $params['id'];
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$productId]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
         }
 
@@ -42,19 +38,23 @@ class DppExportController {
      * Validate DPP data completeness
      */
     public function validate(array $params): void {
+        // DPP export is brand-only
+        $this->requireBrand();
+
         $productId = $params['id'];
+
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($productId)) {
+            Response::error('Product not found', 404);
+        }
 
         $errors = [];
         $warnings = [];
 
-        // Check product exists and has required fields
+        // Check product has required fields
         $stmt = $this->db->prepare('SELECT * FROM products WHERE id = ?');
         $stmt->execute([$productId]);
         $product = $stmt->fetch();
-
-        if (!$product) {
-            Response::error('Product not found', 404);
-        }
 
         // Required product fields
         if (empty($product['product_name'])) {
@@ -108,12 +108,13 @@ class DppExportController {
      * Export DPP in Trace4Value format
      */
     public function export(array $params): void {
+        // DPP export is brand-only
+        $this->requireBrand();
+
         $productId = $params['id'];
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$productId]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
         }
 
@@ -172,7 +173,7 @@ class DppExportController {
              LEFT JOIN suppliers s ON fm.supplier_id = s.id
              INNER JOIN batch_materials bm ON bm.factory_material_id = fm.id
              INNER JOIN batches b ON b.id = bm.batch_id
-             INNER JOIN product_variants pv ON pv.id = b.variant_id
+             INNER JOIN product_variants pv ON pv.id = b.product_variant_id
              WHERE pv.product_id = ?'
         );
         $stmt->execute([$productId]);
@@ -201,14 +202,14 @@ class DppExportController {
     private function getSupplyChainInfo(int|string $productId): array {
         // Get supply chain from materials
         $stmt = $this->db->prepare(
-            'SELECT DISTINCT msc.*
-             FROM material_supply_chain msc
-             INNER JOIN factory_materials fm ON fm.id = msc.factory_material_id
+            'SELECT DISTINCT fmsc.*
+             FROM factory_material_supply_chain fmsc
+             INNER JOIN factory_materials fm ON fm.id = fmsc.factory_material_id
              INNER JOIN batch_materials bm ON bm.factory_material_id = fm.id
              INNER JOIN batches b ON b.id = bm.batch_id
-             INNER JOIN product_variants pv ON pv.id = b.variant_id
+             INNER JOIN product_variants pv ON pv.id = b.product_variant_id
              WHERE pv.product_id = ?
-             ORDER BY msc.step_order'
+             ORDER BY fmsc.process_stage'
         );
         $stmt->execute([$productId]);
         $materialSupplyChain = $stmt->fetchAll();
@@ -233,25 +234,25 @@ class DppExportController {
     }
 
     private function getCareInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM product_care WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM care_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
     private function getComplianceInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM product_compliance WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM compliance_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
     private function getCircularityInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM product_circularity WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM circularity_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
     private function getSustainabilityInfo(int|string $productId): ?array {
-        $stmt = $this->db->prepare('SELECT * FROM product_sustainability WHERE product_id = ?');
+        $stmt = $this->db->prepare('SELECT * FROM sustainability_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
@@ -339,40 +340,35 @@ class DppExportController {
             ],
             'supplyChainInformation' => [
                 'steps' => array_map(fn($step) => [
-                    'order' => $step['step_order'],
-                    'name' => $step['step_name'],
-                    'location' => $step['step_location'],
-                    'country' => $step['step_country'],
-                    'company' => $step['company_name'],
+                    'processStage' => $step['process_stage'],
+                    'supplierName' => $step['supplier_name'],
+                    'country' => $step['country'],
+                    'facilityId' => $step['facility_id'],
                 ], $supplyChain['material_supply_chain'] ?? []),
             ],
             'careInformation' => $care ? [
-                'washingInstructions' => $care['washing_instructions'] ?? null,
-                'dryingInstructions' => $care['drying_instructions'] ?? null,
-                'ironingInstructions' => $care['ironing_instructions'] ?? null,
-                'bleachingInstructions' => $care['bleaching_instructions'] ?? null,
-                'professionalCare' => $care['professional_care'] ?? null,
-                'additionalCare' => $care['additional_care'] ?? null,
+                'careImageUrl' => $care['care_image_url'] ?? null,
+                'careText' => $care['care_text'] ?? null,
+                'safetyInformation' => $care['safety_information'] ?? null,
             ] : null,
             'complianceInformation' => $compliance ? [
-                'reachCompliant' => (bool)($compliance['reach_compliant'] ?? false),
-                'cpscCompliant' => (bool)($compliance['cpsc_compliant'] ?? false),
-                'prop65Compliant' => (bool)($compliance['prop65_compliant'] ?? false),
-                'euTextileRegulation' => (bool)($compliance['eu_textile_regulation'] ?? false),
-                'safetyStandards' => $compliance['safety_standards'] ?? null,
+                'containsSvhc' => (bool)($compliance['contains_svhc'] ?? false),
+                'svhcDetails' => $compliance['svhc_details'] ?? null,
+                'scan4chemLink' => $compliance['scan4chem_link'] ?? null,
+                'shedsMicrofibers' => $compliance['sheds_microfibers'] ?? null,
+                'traceabilityProvider' => $compliance['traceability_provider'] ?? null,
             ] : null,
             'circularityInformation' => $circularity ? [
+                'performance' => $circularity['performance'] ?? null,
                 'recyclability' => $circularity['recyclability'] ?? null,
-                'recycledContent' => (float)($circularity['recycled_content_percentage'] ?? 0),
-                'endOfLifeInstructions' => $circularity['end_of_life_instructions'] ?? null,
-                'takeback' => $circularity['takeback_program'] ?? null,
-                'repairability' => $circularity['repairability_score'] ?? null,
+                'takeBackInstructions' => $circularity['take_back_instructions'] ?? null,
+                'recyclingInstructions' => $circularity['recycling_instructions'] ?? null,
+                'repairInstructions' => $circularity['repair_instructions'] ?? null,
             ] : null,
             'sustainabilityInformation' => $sustainability ? [
-                'carbonFootprint' => $sustainability['carbon_footprint_kg'] ?? null,
-                'waterUsage' => $sustainability['water_usage_liters'] ?? null,
-                'energyConsumption' => $sustainability['energy_consumption_kwh'] ?? null,
-                'sustainabilityCertifications' => $sustainability['sustainability_certifications'] ?? null,
+                'brandStatement' => $sustainability['brand_statement'] ?? null,
+                'brandStatementLink' => $sustainability['brand_statement_link'] ?? null,
+                'environmentalFootprint' => $sustainability['environmental_footprint'] ?? null,
             ] : null,
         ];
     }

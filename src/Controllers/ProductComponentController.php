@@ -1,20 +1,72 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class ProductComponentController {
-    private \PDO $db;
+class ProductComponentController extends TenantAwareController {
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
+    /**
+     * Check if current user can read this product
+     * Brands: own products
+     * Suppliers: products from brands they have relationship with
+     */
+    private function canReadProduct(int|string $productId): bool {
+        if (TenantContext::isBrand()) {
+            return $this->verifyProductOwnership($productId);
+        }
+
+        if (TenantContext::isSupplier()) {
+            $brandId = $this->getProductBrandId($productId);
+            return $brandId && $this->canAccessBrand($brandId);
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if current user can read a component
+     */
+    private function canReadComponent(int|string $componentId): bool {
+        $stmt = $this->db->prepare(
+            'SELECT product_id FROM product_components WHERE id = ?'
+        );
+        $stmt->execute([$componentId]);
+        $comp = $stmt->fetch();
+
+        if (!$comp) {
+            return false;
+        }
+
+        return $this->canReadProduct($comp['product_id']);
+    }
+
+    /**
+     * Verify component belongs to a product owned by current brand (for writes)
+     */
+    private function verifyComponentOwnership(int|string $componentId): bool {
+        if (!TenantContext::isBrand()) {
+            return false;
+        }
+
+        $brandId = TenantContext::getBrandId();
+        $stmt = $this->db->prepare(
+            'SELECT pc.id FROM product_components pc
+             JOIN products p ON pc.product_id = p.id
+             WHERE pc.id = ? AND p.brand_id = ?'
+        );
+        $stmt->execute([$componentId, $brandId]);
+        return (bool) $stmt->fetch();
     }
 
     // ========== Product Components ==========
 
     public function index(array $params): void {
+        if (!$this->canReadProduct($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         $stmt = $this->db->prepare(
             'SELECT * FROM product_components WHERE product_id = ? ORDER BY component_type'
         );
@@ -23,13 +75,13 @@ class ProductComponentController {
     }
 
     public function show(array $params): void {
+        if (!$this->canReadComponent($params['id'])) {
+            Response::error('Component not found', 404);
+        }
+
         $stmt = $this->db->prepare('SELECT * FROM product_components WHERE id = ?');
         $stmt->execute([$params['id']]);
         $component = $stmt->fetch();
-
-        if (!$component) {
-            Response::error('Component not found', 404);
-        }
 
         // Include materials
         $component['materials'] = $this->getComponentMaterials($params['id']);
@@ -38,6 +90,9 @@ class ProductComponentController {
     }
 
     public function create(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['component_type'])) {
@@ -50,10 +105,8 @@ class ProductComponentController {
             Response::error('Invalid component_type. Must be one of: ' . implode(', ', $validTypes));
         }
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['productId']]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($params['productId'])) {
             Response::error('Product not found', 404);
         }
 
@@ -72,11 +125,12 @@ class ProductComponentController {
     }
 
     public function update(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
-        $stmt = $this->db->prepare('SELECT id FROM product_components WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+        if (!$this->verifyComponentOwnership($params['id'])) {
             Response::error('Component not found', 404);
         }
 
@@ -104,9 +158,10 @@ class ProductComponentController {
     }
 
     public function delete(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM product_components WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
+        if (!$this->verifyComponentOwnership($params['id'])) {
             Response::error('Component not found', 404);
         }
 
@@ -131,20 +186,25 @@ class ProductComponentController {
     }
 
     public function listMaterials(array $params): void {
+        if (!$this->canReadComponent($params['componentId'])) {
+            Response::error('Component not found', 404);
+        }
+
         Response::success($this->getComponentMaterials($params['componentId']));
     }
 
     public function addMaterial(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['factory_material_id', 'percentage'])) {
             Response::error($error);
         }
 
-        // Verify component exists
-        $stmt = $this->db->prepare('SELECT id FROM product_components WHERE id = ?');
-        $stmt->execute([$params['componentId']]);
-        if (!$stmt->fetch()) {
+        // Verify component exists and belongs to this brand
+        if (!$this->verifyComponentOwnership($params['componentId'])) {
             Response::error('Component not found', 404);
         }
 
@@ -169,8 +229,19 @@ class ProductComponentController {
     }
 
     public function removeMaterial(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM component_materials WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        // Write operations require brand authentication
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+
+        // Verify component material belongs to a component owned by this brand
+        $stmt = $this->db->prepare(
+            'SELECT cm.id FROM component_materials cm
+             JOIN product_components pc ON cm.component_id = pc.id
+             JOIN products p ON pc.product_id = p.id
+             WHERE cm.id = ? AND p.brand_id = ?'
+        );
+        $stmt->execute([$params['id'], $brandId]);
         if (!$stmt->fetch()) {
             Response::error('Component material not found', 404);
         }

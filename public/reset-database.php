@@ -31,52 +31,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm']) && $_POST[
         // Inaktivera foreign key checks för att kunna droppa tabeller
         $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-        // Schema-filer i rätt ordning
-        $schemaFiles = [
-            '01_foundation.sql',
-            '02_products_batches.sql',
-            '03_care_compliance_export.sql',
-            '04_testdata.sql',
-            '05_testdata_continued.sql',
-            '06_testdata_items.sql'
-        ];
+        // Använd den nya multi-tenant reset-filen
+        $resetFile = __DIR__ . '/../database/reset_database.sql';
 
-        $schemaDir = __DIR__ . '/../database/schema/';
+        if (file_exists($resetFile)) {
+            $sql = file_get_contents($resetFile);
 
-        foreach ($schemaFiles as $file) {
-            $filePath = $schemaDir . $file;
-            if (file_exists($filePath)) {
-                $sql = file_get_contents($filePath);
+            // Ta bort USE-statement (vi är redan anslutna till rätt databas)
+            $sql = preg_replace('/^USE\s+\w+;\s*/mi', '', $sql);
 
-                // Ta bort USE-statement (vi är redan anslutna till rätt databas)
-                $sql = preg_replace('/^USE\s+\w+;\s*/mi', '', $sql);
+            // Kör varje statement separat
+            $statements = array_filter(
+                array_map('trim', explode(';', $sql)),
+                function($s) {
+                    if (empty($s)) return false;
+                    // Ta bort kommentarsrader för att kolla om det finns riktig SQL
+                    $withoutComments = preg_replace('/^--.*$/m', '', $s);
+                    $withoutComments = trim($withoutComments);
+                    return !empty($withoutComments);
+                }
+            );
 
-                // Ta bort SET FOREIGN_KEY_CHECKS (vi hanterar detta i reset-scriptet)
-                $sql = preg_replace('/SET\s+FOREIGN_KEY_CHECKS\s*=\s*[01]\s*;/i', '', $sql);
-
-                // Kör varje statement separat
-                $statements = array_filter(
-                    array_map('trim', explode(';', $sql)),
-                    function($s) {
-                        if (empty($s)) return false;
-                        // Ta bort kommentarsrader för att kolla om det finns riktig SQL
-                        $withoutComments = preg_replace('/^--.*$/m', '', $s);
-                        $withoutComments = trim($withoutComments);
-                        return !empty($withoutComments);
-                    }
-                );
-
-                foreach ($statements as $statement) {
-                    $stmt = trim($statement);
-                    if (!empty($stmt)) {
-                        // Använd query() för alla statements och konsumera alltid resultatet
-                        $result = $pdo->query($stmt);
-                        if ($result !== false) {
-                            $result->closeCursor();
-                        }
+            foreach ($statements as $statement) {
+                $stmt = trim($statement);
+                if (!empty($stmt)) {
+                    // Använd query() för alla statements och konsumera alltid resultatet
+                    $result = $pdo->query($stmt);
+                    if ($result !== false) {
+                        $result->closeCursor();
                     }
                 }
             }
+        } else {
+            throw new Exception('Reset-fil saknas: ' . $resetFile);
         }
 
         // Återaktivera foreign key checks
@@ -87,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm']) && $_POST[
 
         // Hämta statistik
         $stats = [];
-        $tables = ['companies', 'brands', 'suppliers', 'factory_materials', 'products', 'product_variants', 'batches', 'items'];
+        $tables = ['brands', 'suppliers', 'brand_suppliers', 'factory_materials', 'products', 'product_variants', 'batches', 'items'];
         foreach ($tables as $table) {
             $count = $pdo->query("SELECT COUNT(*) FROM $table")->fetchColumn();
             $stats[$table] = $count;
@@ -178,7 +165,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm']) && $_POST[
                 <div class="warning">
                     <h3>Varning!</h3>
                     <p>Detta kommer att <strong>radera all befintlig data</strong> och ersätta den med testdata.</p>
-                    <p>Alla tabeller kommer att återskapas från schema-filerna.</p>
+                    <p>Databasen återskapas med multi-tenant struktur:</p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>4 brands med API-nycklar</li>
+                        <li>5 suppliers med API-nycklar</li>
+                        <li>9 brand-supplier relationer</li>
+                    </ul>
                 </div>
 
                 <form method="POST">

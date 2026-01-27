@@ -1,83 +1,104 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class SupplierController {
-    private \PDO $db;
+/**
+ * Supplier controller with multi-tenant access control.
+ * - As Supplier: Full CRUD on own supplier
+ * - As Brand: Read-only access to related suppliers
+ */
+class SupplierController extends TenantAwareController
+{
+    public function index(array $params): void
+    {
+        if (TenantContext::isSupplier()) {
+            // Supplier sees only their own supplier
+            $stmt = $this->db->prepare('SELECT * FROM suppliers WHERE id = ?');
+            $stmt->execute([TenantContext::getSupplierId()]);
+        } else {
+            // Brand sees suppliers they have relationships with
+            $stmt = $this->db->prepare(
+                'SELECT DISTINCT s.*
+                 FROM suppliers s
+                 JOIN brand_suppliers bs ON s.id = bs.supplier_id
+                 WHERE bs.brand_id = ? AND bs._is_active = TRUE AND s._is_active = TRUE
+                 ORDER BY s.supplier_name'
+            );
+            $stmt->execute([TenantContext::getBrandId()]);
+        }
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
-    }
-
-    public function index(array $params): void {
-        $sql = 'SELECT s.*, c.name as company_name
-                FROM suppliers s
-                LEFT JOIN companies c ON s.company_id = c.id
-                ORDER BY s.created_at DESC';
-        $stmt = $this->db->query($sql);
         Response::success($stmt->fetchAll());
     }
 
-    public function show(array $params): void {
-        $stmt = $this->db->prepare(
-            'SELECT s.*, c.name as company_name
-             FROM suppliers s
-             LEFT JOIN companies c ON s.company_id = c.id
-             WHERE s.id = ?'
-        );
-        $stmt->execute([$params['id']]);
-        $supplier = $stmt->fetch();
+    public function show(array $params): void
+    {
+        $id = (int) $params['id'];
 
+        if (TenantContext::isSupplier()) {
+            // Supplier can only see their own supplier
+            if ($id !== TenantContext::getSupplierId()) {
+                Response::error('Supplier not found', 404);
+                return;
+            }
+            $stmt = $this->db->prepare('SELECT * FROM suppliers WHERE id = ?');
+            $stmt->execute([$id]);
+        } else {
+            // Brand can see suppliers they have relationship with
+            if (!$this->canAccessSupplier($id)) {
+                Response::error('Supplier not found', 404);
+                return;
+            }
+            $stmt = $this->db->prepare('SELECT * FROM suppliers WHERE id = ?');
+            $stmt->execute([$id]);
+        }
+
+        $supplier = $stmt->fetch();
         if (!$supplier) {
             Response::error('Supplier not found', 404);
+            return;
         }
+
         Response::success($supplier);
     }
 
-    public function create(array $params): void {
-        $data = Validator::getJsonBody();
-
-        if ($error = Validator::required($data, ['company_id', 'supplier_name'])) {
-            Response::error($error);
-        }
-
-        // Verify company exists
-        $stmt = $this->db->prepare('SELECT id FROM companies WHERE id = ?');
-        $stmt->execute([$data['company_id']]);
-        if (!$stmt->fetch()) {
-            Response::error('Company not found', 404);
-        }
-
-        $stmt = $this->db->prepare(
-            'INSERT INTO suppliers (
-                company_id, supplier_name, supplier_location, facility_registry,
-                facility_identifier, operator_registry, operator_identifier
-             ) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        );
-        $stmt->execute([
-            $data['company_id'],
-            $data['supplier_name'],
-            $data['supplier_location'] ?? null,
-            $data['facility_registry'] ?? null,
-            $data['facility_identifier'] ?? null,
-            $data['operator_registry'] ?? null,
-            $data['operator_identifier'] ?? null
-        ]);
-
-        $id = $this->db->lastInsertId();
-        $this->show(['id' => $id]);
+    public function create(array $params): void
+    {
+        // Suppliers cannot create other suppliers via API
+        // Brands cannot create suppliers
+        Response::error('Supplier creation not allowed via API. Contact administrator.', 403);
     }
 
-    public function update(array $params): void {
+    public function update(array $params): void
+    {
+        $this->requireSupplier();
+
+        $id = (int) $params['id'];
+
+        // Can only update own supplier
+        if ($id !== TenantContext::getSupplierId()) {
+            Response::error('Supplier not found', 404);
+            return;
+        }
+
         $data = Validator::getJsonBody();
 
-        $stmt = $this->db->prepare('SELECT id FROM suppliers WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
-            Response::error('Supplier not found', 404);
+        // Validate LEI if provided
+        if (isset($data['lei']) && $data['lei'] !== null && $data['lei'] !== '') {
+            if (!preg_match('/^[A-Z0-9]{20}$/', $data['lei'])) {
+                Response::error('Invalid LEI format. Must be exactly 20 alphanumeric characters (A-Z, 0-9).');
+                return;
+            }
+        }
+
+        // Validate GS1 Company Prefix if provided
+        if (isset($data['gs1_company_prefix']) && $data['gs1_company_prefix'] !== null && $data['gs1_company_prefix'] !== '') {
+            if (!preg_match('/^[0-9]{6,12}$/', $data['gs1_company_prefix'])) {
+                Response::error('Invalid GS1 Company Prefix. Must be 6-12 digits.');
+                return;
+            }
         }
 
         $stmt = $this->db->prepare(
@@ -87,7 +108,9 @@ class SupplierController {
                 facility_registry = COALESCE(?, facility_registry),
                 facility_identifier = COALESCE(?, facility_identifier),
                 operator_registry = COALESCE(?, operator_registry),
-                operator_identifier = COALESCE(?, operator_identifier)
+                operator_identifier = COALESCE(?, operator_identifier),
+                lei = COALESCE(?, lei),
+                gs1_company_prefix = COALESCE(?, gs1_company_prefix)
              WHERE id = ?'
         );
         $stmt->execute([
@@ -97,22 +120,17 @@ class SupplierController {
             $data['facility_identifier'] ?? null,
             $data['operator_registry'] ?? null,
             $data['operator_identifier'] ?? null,
-            $params['id']
+            $data['lei'] ?? null,
+            $data['gs1_company_prefix'] ?? null,
+            $id
         ]);
 
-        $this->show($params);
+        $this->show(['id' => $id]);
     }
 
-    public function delete(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM suppliers WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
-            Response::error('Supplier not found', 404);
-        }
-
-        $stmt = $this->db->prepare('DELETE FROM suppliers WHERE id = ?');
-        $stmt->execute([$params['id']]);
-
-        Response::success(['deleted' => (int)$params['id']]);
+    public function delete(array $params): void
+    {
+        // Suppliers cannot be deleted via API
+        Response::error('Supplier deletion not allowed via API. Contact administrator.', 403);
     }
 }

@@ -1,20 +1,37 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class ComplianceController {
-    private \PDO $db;
+class ComplianceController extends TenantAwareController {
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
+    /**
+     * Check if current user can read this product
+     * Brands: own products
+     * Suppliers: products from brands they have relationship with
+     */
+    private function canReadProduct(int|string $productId): bool {
+        if (TenantContext::isBrand()) {
+            return $this->verifyProductOwnership($productId);
+        }
+
+        if (TenantContext::isSupplier()) {
+            $brandId = $this->getProductBrandId($productId);
+            return $brandId && $this->canAccessBrand($brandId);
+        }
+
+        return false;
     }
 
     // ========== Compliance Information ==========
 
     public function show(array $params): void {
+        if (!$this->canReadProduct($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         $stmt = $this->db->prepare('SELECT * FROM compliance_information WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         $compliance = $stmt->fetch();
@@ -30,12 +47,13 @@ class ComplianceController {
     }
 
     public function createOrUpdate(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['productId']]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($params['productId'])) {
             Response::error('Product not found', 404);
         }
 
@@ -85,6 +103,13 @@ class ComplianceController {
     }
 
     public function delete(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
+        if (!$this->verifyProductOwnership($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         $stmt = $this->db->prepare('SELECT id FROM compliance_information WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         if (!$stmt->fetch()) {
@@ -108,20 +133,25 @@ class ComplianceController {
     }
 
     public function listChemicals(array $params): void {
+        if (!$this->canReadProduct($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         Response::success($this->getChemicalCompliance($params['productId']));
     }
 
     public function addChemical(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['compliance_standard'])) {
             Response::error($error);
         }
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['productId']]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($params['productId'])) {
             Response::error('Product not found', 404);
         }
 
@@ -143,8 +173,18 @@ class ComplianceController {
     }
 
     public function removeChemical(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM chemical_compliance WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        // Write operations require brand authentication
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+
+        // Verify chemical compliance belongs to a product owned by this brand
+        $stmt = $this->db->prepare(
+            'SELECT cc.id FROM chemical_compliance cc
+             JOIN products p ON cc.product_id = p.id
+             WHERE cc.id = ? AND p.brand_id = ?'
+        );
+        $stmt->execute([$params['id'], $brandId]);
         if (!$stmt->fetch()) {
             Response::error('Chemical compliance record not found', 404);
         }

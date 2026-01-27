@@ -1,0 +1,88 @@
+dpp/
+├── .claude/
+│   ├── settings.json
+│   └── settings.local.json
+├── database/
+│   ├── migrations/
+│   │   ├── 001_add_tenant_auth.sql
+│   │   ├── 002_create_brand_suppliers.sql
+│   │   ├── 003_add_brand_id.sql
+│   │   ├── 004_remove_company_id.sql
+│   │   ├── 005_drop_company_tables.sql
+│   │   ├── 006_expanded_testdata.sql
+│   │   └── add_multi_tenant.sql
+│   ├── schema/
+│   │   ├── 01_foundation.sql
+│   │   ├── 02_products_batches.sql
+│   │   ├── 03_care_compliance_export.sql
+│   │   ├── 04_testdata.sql
+│   │   ├── 05_testdata_continued.sql
+│   │   └── 06_testdata_items.sql
+│   ├── reset_database.sql
+│   └── setup.sql
+├── public/
+│   ├── docs/
+│   │   ├── dataflow.html
+│   │   └── referensdokument.html
+│   ├── admin-tenants.php
+│   ├── api.php
+│   ├── dpp.php
+│   ├── dpp-item.php
+│   ├── dpp-product.php
+│   ├── index.php
+│   ├── login.php
+│   ├── logout.php
+│   ├── reset-database.php
+│   ├── test.php
+│   ├── test-batches.php
+│   ├── test-brands.php
+│   ├── test-brand-suppliers.php
+│   ├── test-companies.php
+│   ├── test-items.php
+│   ├── test-materials.php
+│   ├── test-products.php
+│   ├── test-suppliers.php
+│   └── test-variants.php
+├── routes/
+│   └── api/
+│       ├── batches.php
+│       ├── brands.php
+│       ├── brand-suppliers.php
+│       ├── items.php
+│       ├── materials.php
+│       ├── products.php
+│       ├── suppliers.php
+│       ├── tenants.php
+│       └── variants.php
+├── src/
+│   ├── Config/
+│   │   ├── Auth.php
+│   │   ├── Database.php
+│   │   └── TenantContext.php
+│   ├── Controllers/
+│   │   ├── BatchController.php
+│   │   ├── BatchMaterialController.php
+│   │   ├── BrandController.php
+│   │   ├── BrandSupplierController.php
+│   │   ├── CareInformationController.php
+│   │   ├── CertificationController.php
+│   │   ├── CircularityController.php
+│   │   ├── ComplianceController.php
+│   │   ├── DppExportController.php
+│   │   ├── FactoryMaterialCertificationController.php
+│   │   ├── FactoryMaterialCompositionController.php
+│   │   ├── FactoryMaterialController.php
+│   │   ├── FactoryMaterialSupplyChainController.php
+│   │   ├── ItemController.php
+│   │   ├── ProductComponentController.php
+│   │   ├── ProductController.php
+│   │   ├── ProductVariantController.php
+│   │   ├── SupplierController.php
+│   │   ├── SustainabilityController.php
+│   │   └── TenantAwareController.php
+│   └── Helpers/
+│       ├── Response.php
+│       └── Validator.php
+├── vendor/                    (composer dependencies)
+├── .htaccess
+└── composer.json

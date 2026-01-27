@@ -42,6 +42,7 @@ Auth::requireLogin();
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
         <h1>Companies</h1>
         <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
+        <div id="company_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
     <div class="container">
@@ -84,8 +85,43 @@ Auth::requireLogin();
             return document.getElementById('company_id_select').value;
         }
 
+        function getApiKey() {
+            const apiKey = localStorage.getItem('dpp_api_key');
+            if (!apiKey) {
+                document.getElementById('response').textContent = 'Välj ett företag på huvudsidan först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return apiKey;
+        }
+
+        function showCompanyBanner() {
+            const companyName = localStorage.getItem('dpp_company_name');
+            const banner = document.getElementById('company_banner');
+            if (companyName) {
+                banner.textContent = 'Testar som: ' + companyName;
+                banner.style.display = 'inline-block';
+            } else {
+                banner.textContent = 'Inget företag valt - välj på huvudsidan';
+                banner.style.background = 'rgba(255,0,0,0.3)';
+            }
+        }
+
         async function api(method, endpoint, data = null) {
-            const opts = { method, headers: { 'Content-Type': 'application/json' } };
+            // Prevent API calls with invalid IDs
+            if (endpoint.includes('/null/') || endpoint.includes('//') || endpoint.endsWith('/null')) {
+                return;
+            }
+            const apiKey = getApiKey();
+            if (!apiKey) return;
+
+            const opts = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': apiKey
+                }
+            };
             if (data) opts.body = JSON.stringify(data);
             try {
                 const res = await fetch(endpoint, opts);
@@ -99,7 +135,12 @@ Auth::requireLogin();
         }
 
         async function loadCompanies() {
-            const res = await fetch('/api/companies');
+            const apiKey = getApiKey();
+            if (!apiKey) return;
+
+            const res = await fetch('/api/companies', {
+                headers: { 'X-API-Key': apiKey }
+            });
             const json = await res.json();
             const select = document.getElementById('company_id_select');
             select.innerHTML = '<option value="">-- Välj company --</option>';
@@ -110,6 +151,7 @@ Auth::requireLogin();
             }
         }
 
+        showCompanyBanner();
         loadCompanies();
 
         function create() {

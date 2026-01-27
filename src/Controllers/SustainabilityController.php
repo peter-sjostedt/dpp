@@ -1,18 +1,35 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class SustainabilityController {
-    private \PDO $db;
+class SustainabilityController extends TenantAwareController {
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
+    /**
+     * Check if current user can read this product
+     * Brands: own products
+     * Suppliers: products from brands they have relationship with
+     */
+    private function canReadProduct(int|string $productId): bool {
+        if (TenantContext::isBrand()) {
+            return $this->verifyProductOwnership($productId);
+        }
+
+        if (TenantContext::isSupplier()) {
+            $brandId = $this->getProductBrandId($productId);
+            return $brandId && $this->canAccessBrand($brandId);
+        }
+
+        return false;
     }
 
     public function show(array $params): void {
+        if (!$this->canReadProduct($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         $stmt = $this->db->prepare('SELECT * FROM sustainability_information WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         $sustainability = $stmt->fetch();
@@ -30,12 +47,13 @@ class SustainabilityController {
     }
 
     public function createOrUpdate(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['productId']]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($params['productId'])) {
             Response::error('Product not found', 404);
         }
 
@@ -86,6 +104,13 @@ class SustainabilityController {
     }
 
     public function delete(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
+        if (!$this->verifyProductOwnership($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         $stmt = $this->db->prepare('SELECT id FROM sustainability_information WHERE product_id = ?');
         $stmt->execute([$params['productId']]);
         if (!$stmt->fetch()) {

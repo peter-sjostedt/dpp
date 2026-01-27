@@ -1,18 +1,52 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class CertificationController {
-    private \PDO $db;
+class CertificationController extends TenantAwareController {
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
+    /**
+     * Check if current user can read this product
+     * Brands: own products
+     * Suppliers: products from brands they have relationship with
+     */
+    private function canReadProduct(int|string $productId): bool {
+        if (TenantContext::isBrand()) {
+            return $this->verifyProductOwnership($productId);
+        }
+
+        if (TenantContext::isSupplier()) {
+            $brandId = $this->getProductBrandId($productId);
+            return $brandId && $this->canAccessBrand($brandId);
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if current user can read a certification by ID
+     */
+    private function canReadCertification(int|string $certificationId): bool {
+        $stmt = $this->db->prepare(
+            'SELECT product_id FROM certifications WHERE id = ?'
+        );
+        $stmt->execute([$certificationId]);
+        $cert = $stmt->fetch();
+
+        if (!$cert) {
+            return false;
+        }
+
+        return $this->canReadProduct($cert['product_id']);
     }
 
     public function index(array $params): void {
+        if (!$this->canReadProduct($params['productId'])) {
+            Response::error('Product not found', 404);
+        }
+
         $stmt = $this->db->prepare(
             'SELECT * FROM certifications WHERE product_id = ? ORDER BY certification_name'
         );
@@ -21,27 +55,27 @@ class CertificationController {
     }
 
     public function show(array $params): void {
-        $stmt = $this->db->prepare('SELECT * FROM certifications WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        $cert = $stmt->fetch();
-
-        if (!$cert) {
+        if (!$this->canReadCertification($params['id'])) {
             Response::error('Certification not found', 404);
         }
-        Response::success($cert);
+
+        $stmt = $this->db->prepare('SELECT * FROM certifications WHERE id = ?');
+        $stmt->execute([$params['id']]);
+        Response::success($stmt->fetch());
     }
 
     public function create(array $params): void {
+        // Write operations require brand authentication
+        $this->requireBrand();
+
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['certification_name'])) {
             Response::error($error);
         }
 
-        // Verify product exists
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['productId']]);
-        if (!$stmt->fetch()) {
+        // Verify product exists and belongs to this brand
+        if (!$this->verifyProductOwnership($params['productId'])) {
             Response::error('Product not found', 404);
         }
 
@@ -64,10 +98,19 @@ class CertificationController {
     }
 
     public function update(array $params): void {
-        $data = Validator::getJsonBody();
+        // Write operations require brand authentication
+        $this->requireBrand();
 
-        $stmt = $this->db->prepare('SELECT id FROM certifications WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        $data = Validator::getJsonBody();
+        $brandId = TenantContext::getBrandId();
+
+        // Verify certification belongs to a product owned by this brand
+        $stmt = $this->db->prepare(
+            'SELECT c.id FROM certifications c
+             JOIN products p ON c.product_id = p.id
+             WHERE c.id = ? AND p.brand_id = ?'
+        );
+        $stmt->execute([$params['id'], $brandId]);
         if (!$stmt->fetch()) {
             Response::error('Certification not found', 404);
         }
@@ -92,8 +135,18 @@ class CertificationController {
     }
 
     public function delete(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM certifications WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        // Write operations require brand authentication
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+
+        // Verify certification belongs to a product owned by this brand
+        $stmt = $this->db->prepare(
+            'SELECT c.id FROM certifications c
+             JOIN products p ON c.product_id = p.id
+             WHERE c.id = ? AND p.brand_id = ?'
+        );
+        $stmt->execute([$params['id'], $brandId]);
         if (!$stmt->fetch()) {
             Response::error('Certification not found', 404);
         }

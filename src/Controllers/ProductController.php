@@ -1,81 +1,162 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class ProductController {
-    private \PDO $db;
+/**
+ * Product controller with multi-tenant access control.
+ * - As Brand: Full CRUD on own products
+ * - As Supplier: Read-only access to products from related brands
+ */
+class ProductController extends TenantAwareController
+{
+    public function index(array $params): void
+    {
+        if (TenantContext::isBrand()) {
+            $brandId = TenantContext::getBrandId();
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
-    }
+            // Verify brandId in URL matches authenticated brand
+            if (isset($params['brandId']) && (int)$params['brandId'] !== $brandId) {
+                Response::error('Brand not found', 404);
+                return;
+            }
 
-    public function index(array $params): void {
-        // Endast produkter som har items (via variants → batches → items)
-        $stmt = $this->db->prepare(
-            'SELECT DISTINCT p.*, b.brand_name
-             FROM products p
-             LEFT JOIN brands b ON p.brand_id = b.id
-             JOIN product_variants pv ON pv.product_id = p.id
-             JOIN batches bat ON bat.product_variant_id = pv.id
-             JOIN items i ON i.batch_id = bat.id
-             WHERE p.brand_id = ? AND p._is_active = TRUE
-             ORDER BY p.product_name'
-        );
-        $stmt->execute([$params['brandId']]);
+            // Products belonging to brand that have items
+            $stmt = $this->db->prepare(
+                'SELECT DISTINCT p.*, b.brand_name
+                 FROM products p
+                 LEFT JOIN brands b ON p.brand_id = b.id
+                 JOIN product_variants pv ON pv.product_id = p.id
+                 JOIN batches bat ON bat.product_variant_id = pv.id
+                 JOIN items i ON i.batch_id = bat.id
+                 WHERE p.brand_id = ? AND p._is_active = TRUE
+                 ORDER BY p.product_name'
+            );
+            $stmt->execute([$brandId]);
+        } else {
+            // Supplier sees products from related brands
+            $brandId = isset($params['brandId']) ? (int)$params['brandId'] : null;
+
+            if ($brandId && !$this->canAccessBrand($brandId)) {
+                Response::error('Brand not found', 404);
+                return;
+            }
+
+            if ($brandId) {
+                $stmt = $this->db->prepare(
+                    'SELECT DISTINCT p.*, b.brand_name
+                     FROM products p
+                     LEFT JOIN brands b ON p.brand_id = b.id
+                     WHERE p.brand_id = ? AND p._is_active = TRUE
+                     ORDER BY p.product_name'
+                );
+                $stmt->execute([$brandId]);
+            } else {
+                // All products from related brands
+                $stmt = $this->db->prepare(
+                    'SELECT DISTINCT p.*, b.brand_name
+                     FROM products p
+                     LEFT JOIN brands b ON p.brand_id = b.id
+                     JOIN brand_suppliers bs ON p.brand_id = bs.brand_id
+                     WHERE bs.supplier_id = ? AND bs._is_active = TRUE AND p._is_active = TRUE
+                     ORDER BY b.brand_name, p.product_name'
+                );
+                $stmt->execute([TenantContext::getSupplierId()]);
+            }
+        }
+
         Response::success($stmt->fetchAll());
     }
 
-    public function indexAll(array $params): void {
-        $stmt = $this->db->query(
-            'SELECT p.*, b.brand_name
-             FROM products p
-             LEFT JOIN brands b ON p.brand_id = b.id
-             ORDER BY b.brand_name, p.product_name'
-        );
+    public function indexAll(array $params): void
+    {
+        if (TenantContext::isBrand()) {
+            $stmt = $this->db->prepare(
+                'SELECT p.*, b.brand_name
+                 FROM products p
+                 LEFT JOIN brands b ON p.brand_id = b.id
+                 WHERE p.brand_id = ?
+                 ORDER BY p.product_name'
+            );
+            $stmt->execute([TenantContext::getBrandId()]);
+        } else {
+            // Supplier sees all products from related brands
+            $stmt = $this->db->prepare(
+                'SELECT p.*, b.brand_name
+                 FROM products p
+                 LEFT JOIN brands b ON p.brand_id = b.id
+                 JOIN brand_suppliers bs ON p.brand_id = bs.brand_id
+                 WHERE bs.supplier_id = ? AND bs._is_active = TRUE
+                 ORDER BY b.brand_name, p.product_name'
+            );
+            $stmt->execute([TenantContext::getSupplierId()]);
+        }
+
         Response::success($stmt->fetchAll());
     }
 
-    public function show(array $params): void {
+    public function show(array $params): void
+    {
+        $productId = (int) $params['id'];
+
+        if (TenantContext::isBrand()) {
+            if (!$this->verifyProductOwnership($productId)) {
+                Response::error('Product not found', 404);
+                return;
+            }
+        } else {
+            // Supplier can view products from related brands
+            $brandId = $this->getProductBrandId($productId);
+            if (!$brandId || !$this->canAccessBrand($brandId)) {
+                Response::error('Product not found', 404);
+                return;
+            }
+        }
+
         $stmt = $this->db->prepare(
-            'SELECT p.*, b.brand_name, c.name as company_name
+            'SELECT p.*, b.brand_name, b.logo_url as brand_logo, b.parent_company, b.trader_name, b.trader_address
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
-             LEFT JOIN companies c ON b.company_id = c.id
              WHERE p.id = ?'
         );
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$productId]);
         $product = $stmt->fetch();
 
         if (!$product) {
             Response::error('Product not found', 404);
+            return;
         }
 
         // Include related information
-        $product['care_information'] = $this->getCareInfo($params['id']);
-        $product['compliance_information'] = $this->getComplianceInfo($params['id']);
-        $product['circularity_information'] = $this->getCircularityInfo($params['id']);
-        $product['sustainability_information'] = $this->getSustainabilityInfo($params['id']);
-        $product['certifications'] = $this->getCertifications($params['id']);
-        $product['chemical_compliance'] = $this->getChemicalCompliance($params['id']);
+        $product['care_information'] = $this->getCareInfo($productId);
+        $product['compliance_information'] = $this->getComplianceInfo($productId);
+        $product['circularity_information'] = $this->getCircularityInfo($productId);
+        $product['sustainability_information'] = $this->getSustainabilityInfo($productId);
+        $product['certifications'] = $this->getCertifications($productId);
+        $product['chemical_compliance'] = $this->getChemicalCompliance($productId);
 
         Response::success($product);
     }
 
-    public function create(array $params): void {
+    public function create(array $params): void
+    {
+        $this->requireBrand();
+
+        $brandId = TenantContext::getBrandId();
+
+        // Verify brandId in URL matches authenticated brand
+        if (isset($params['brandId']) && (int)$params['brandId'] !== $brandId) {
+            Response::error('Cannot create products for other brands', 403);
+            return;
+        }
+
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['product_name'])) {
             Response::error($error);
-        }
-
-        // Verify brand exists
-        $stmt = $this->db->prepare('SELECT id FROM brands WHERE id = ?');
-        $stmt->execute([$params['brandId']]);
-        if (!$stmt->fetch()) {
-            Response::error('Brand not found', 404);
+            return;
         }
 
         $stmt = $this->db->prepare(
@@ -89,7 +170,7 @@ class ProductController {
              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
-            $params['brandId'],
+            $brandId,
             $data['gtin'] ?? null,
             $data['product_name'],
             $data['description'] ?? null,
@@ -121,14 +202,18 @@ class ProductController {
         $this->show(['id' => $id]);
     }
 
-    public function update(array $params): void {
-        $data = Validator::getJsonBody();
+    public function update(array $params): void
+    {
+        $this->requireBrand();
 
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+        $productId = (int) $params['id'];
+
+        if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
+            return;
         }
+
+        $data = Validator::getJsonBody();
 
         $stmt = $this->db->prepare(
             'UPDATE products SET
@@ -185,94 +270,121 @@ class ProductController {
             $data['data_carrier_type'] ?? null,
             $data['data_carrier_material'] ?? null,
             $data['data_carrier_location'] ?? null,
-            $params['id']
+            $productId
         ]);
 
-        $this->show($params);
+        $this->show(['id' => $productId]);
     }
 
-    public function delete(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM products WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+    public function delete(array $params): void
+    {
+        $this->requireBrand();
+
+        $productId = (int) $params['id'];
+
+        if (!$this->verifyProductOwnership($productId)) {
             Response::error('Product not found', 404);
+            return;
         }
 
         $stmt = $this->db->prepare('DELETE FROM products WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$productId]);
 
-        Response::success(['deleted' => (int)$params['id']]);
+        Response::success(['deleted' => $productId]);
     }
 
     // DPP Export - complete digital product passport
-    public function getDpp(array $params): void {
+    public function getDpp(array $params): void
+    {
+        $productId = (int) $params['id'];
+
+        if (TenantContext::isBrand()) {
+            if (!$this->verifyProductOwnership($productId)) {
+                Response::error('Product not found', 404);
+                return;
+            }
+        } else {
+            // Supplier can view DPP for products from related brands
+            $brandId = $this->getProductBrandId($productId);
+            if (!$brandId || !$this->canAccessBrand($brandId)) {
+                Response::error('Product not found', 404);
+                return;
+            }
+        }
+
         $stmt = $this->db->prepare(
-            'SELECT p.*, b.brand_name, b.logo_url, b.sub_brand, b.parent_company, b.trader_name, b.trader_address,
-                    c.name as company_name, c.org_number
+            'SELECT p.*, b.brand_name, b.logo_url, b.sub_brand, b.parent_company, b.trader_name, b.trader_address
              FROM products p
              LEFT JOIN brands b ON p.brand_id = b.id
-             LEFT JOIN companies c ON b.company_id = c.id
              WHERE p.id = ?'
         );
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$productId]);
         $product = $stmt->fetch();
 
         if (!$product) {
             Response::error('Product not found', 404);
+            return;
         }
 
         $dpp = [
             'product' => $product,
-            'care_information' => $this->getCareInfo($params['id']),
-            'compliance_information' => $this->getComplianceInfo($params['id']),
-            'circularity_information' => $this->getCircularityInfo($params['id']),
-            'sustainability_information' => $this->getSustainabilityInfo($params['id']),
-            'certifications' => $this->getCertifications($params['id']),
-            'chemical_compliance' => $this->getChemicalCompliance($params['id']),
-            'variants' => $this->getVariantsWithDetails($params['id'])
+            'care_information' => $this->getCareInfo($productId),
+            'compliance_information' => $this->getComplianceInfo($productId),
+            'circularity_information' => $this->getCircularityInfo($productId),
+            'sustainability_information' => $this->getSustainabilityInfo($productId),
+            'certifications' => $this->getCertifications($productId),
+            'chemical_compliance' => $this->getChemicalCompliance($productId),
+            'variants' => $this->getVariantsWithDetails($productId)
         ];
 
         Response::success($dpp);
     }
 
     // Helper methods to get related information
-    private function getCareInfo(int|string $productId): ?array {
+    private function getCareInfo(int|string $productId): ?array
+    {
         $stmt = $this->db->prepare('SELECT * FROM care_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getComplianceInfo(int|string $productId): ?array {
+    private function getComplianceInfo(int|string $productId): ?array
+    {
         $stmt = $this->db->prepare('SELECT * FROM compliance_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getCircularityInfo(int|string $productId): ?array {
+    private function getCircularityInfo(int|string $productId): ?array
+    {
         $stmt = $this->db->prepare('SELECT * FROM circularity_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getSustainabilityInfo(int|string $productId): ?array {
+    private function getSustainabilityInfo(int|string $productId): ?array
+    {
         $stmt = $this->db->prepare('SELECT * FROM sustainability_information WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetch() ?: null;
     }
 
-    private function getCertifications(int|string $productId): array {
+    private function getCertifications(int|string $productId): array
+    {
         $stmt = $this->db->prepare('SELECT * FROM certifications WHERE product_id = ? ORDER BY certification_name');
         $stmt->execute([$productId]);
         return $stmt->fetchAll();
     }
 
-    private function getChemicalCompliance(int|string $productId): array {
+    private function getChemicalCompliance(int|string $productId): array
+    {
         $stmt = $this->db->prepare('SELECT * FROM chemical_compliance WHERE product_id = ?');
         $stmt->execute([$productId]);
         return $stmt->fetchAll();
     }
 
-    private function getVariantsWithDetails(int|string $productId): array {
+    private function getVariantsWithDetails(int|string $productId): array
+    {
         $stmt = $this->db->prepare('SELECT * FROM product_variants WHERE product_id = ? ORDER BY sku');
         $stmt->execute([$productId]);
         $variants = $stmt->fetchAll();

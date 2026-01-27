@@ -1,68 +1,117 @@
 <?php
 namespace App\Controllers;
 
-use App\Config\Database;
+use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class FactoryMaterialController {
-    private \PDO $db;
+/**
+ * Factory Material controller with multi-tenant access control.
+ * - As Supplier: Full CRUD on own materials
+ * - As Brand: Read-only access to materials from related suppliers
+ */
+class FactoryMaterialController extends TenantAwareController
+{
+    public function index(array $params): void
+    {
+        $supplierId = (int) $params['supplierId'];
 
-    public function __construct() {
-        $this->db = Database::getInstance()->getConnection();
-    }
+        if (TenantContext::isSupplier()) {
+            // Supplier can only see their own materials
+            if ($supplierId !== TenantContext::getSupplierId()) {
+                Response::error('Supplier not found', 404);
+                return;
+            }
+        } else {
+            // Brand can see materials from related suppliers
+            if (!$this->canAccessSupplier($supplierId)) {
+                Response::error('Supplier not found', 404);
+                return;
+            }
+        }
 
-    public function index(array $params): void {
         $stmt = $this->db->prepare(
             'SELECT fm.*, s.supplier_name
              FROM factory_materials fm
              LEFT JOIN suppliers s ON fm.supplier_id = s.id
-             WHERE fm.supplier_id = ?
+             WHERE fm.supplier_id = ? AND fm._is_active = TRUE
              ORDER BY fm.created_at DESC'
         );
-        $stmt->execute([$params['supplierId']]);
+        $stmt->execute([$supplierId]);
         Response::success($stmt->fetchAll());
     }
 
-    public function indexAll(array $params): void {
-        $stmt = $this->db->query(
-            'SELECT fm.*, s.supplier_name
-             FROM factory_materials fm
-             LEFT JOIN suppliers s ON fm.supplier_id = s.id
-             ORDER BY fm.created_at DESC'
-        );
+    public function indexAll(array $params): void
+    {
+        if (TenantContext::isSupplier()) {
+            // Supplier sees only their own active materials
+            $stmt = $this->db->prepare(
+                'SELECT fm.*, s.supplier_name
+                 FROM factory_materials fm
+                 LEFT JOIN suppliers s ON fm.supplier_id = s.id
+                 WHERE fm.supplier_id = ? AND fm._is_active = TRUE
+                 ORDER BY fm.created_at DESC'
+            );
+            $stmt->execute([TenantContext::getSupplierId()]);
+        } else {
+            // Brand sees active materials from related suppliers
+            $stmt = $this->db->prepare(
+                'SELECT DISTINCT fm.*, s.supplier_name
+                 FROM factory_materials fm
+                 LEFT JOIN suppliers s ON fm.supplier_id = s.id
+                 JOIN brand_suppliers bs ON s.id = bs.supplier_id
+                 WHERE bs.brand_id = ? AND bs._is_active = TRUE AND fm._is_active = TRUE
+                 ORDER BY s.supplier_name, fm.material_name'
+            );
+            $stmt->execute([TenantContext::getBrandId()]);
+        }
+
         Response::success($stmt->fetchAll());
     }
 
-    public function show(array $params): void {
+    public function show(array $params): void
+    {
+        $materialId = (int) $params['id'];
+
+        if (!$this->canAccessMaterial($materialId)) {
+            Response::error('Material not found', 404);
+            return;
+        }
+
         $stmt = $this->db->prepare(
             'SELECT fm.*, s.supplier_name
              FROM factory_materials fm
              LEFT JOIN suppliers s ON fm.supplier_id = s.id
              WHERE fm.id = ?'
         );
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$materialId]);
         $material = $stmt->fetch();
 
         if (!$material) {
             Response::error('Material not found', 404);
+            return;
         }
 
         Response::success($material);
     }
 
-    public function create(array $params): void {
+    public function create(array $params): void
+    {
+        $this->requireSupplier();
+
+        $supplierId = (int) $params['supplierId'];
+
+        // Can only create materials for own supplier
+        if ($supplierId !== TenantContext::getSupplierId()) {
+            Response::error('Supplier not found', 404);
+            return;
+        }
+
         $data = Validator::getJsonBody();
 
         if ($error = Validator::required($data, ['material_name'])) {
             Response::error($error);
-        }
-
-        // Verify supplier exists
-        $stmt = $this->db->prepare('SELECT id FROM suppliers WHERE id = ?');
-        $stmt->execute([$params['supplierId']]);
-        if (!$stmt->fetch()) {
-            Response::error('Supplier not found', 404);
+            return;
         }
 
         $stmt = $this->db->prepare(
@@ -72,7 +121,7 @@ class FactoryMaterialController {
              ) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
-            $params['supplierId'],
+            $supplierId,
             $data['material_name'],
             $data['material_type'] ?? 'textile',
             $data['_internal_code'] ?? null,
@@ -85,14 +134,18 @@ class FactoryMaterialController {
         $this->show(['id' => $id]);
     }
 
-    public function update(array $params): void {
-        $data = Validator::getJsonBody();
+    public function update(array $params): void
+    {
+        $this->requireSupplier();
 
-        $stmt = $this->db->prepare('SELECT id FROM factory_materials WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+        $materialId = (int) $params['id'];
+
+        if (!$this->verifyMaterialOwnership($materialId)) {
             Response::error('Material not found', 404);
+            return;
         }
+
+        $data = Validator::getJsonBody();
 
         $stmt = $this->db->prepare(
             'UPDATE factory_materials SET
@@ -111,22 +164,38 @@ class FactoryMaterialController {
             $data['net_weight_per_meter'] ?? null,
             $data['width_cm'] ?? null,
             $data['_is_active'] ?? null,
-            $params['id']
+            $materialId
         ]);
 
-        $this->show($params);
+        $this->show(['id' => $materialId]);
     }
 
-    public function delete(array $params): void {
-        $stmt = $this->db->prepare('SELECT id FROM factory_materials WHERE id = ?');
-        $stmt->execute([$params['id']]);
-        if (!$stmt->fetch()) {
+    public function delete(array $params): void
+    {
+        $this->requireSupplier();
+
+        $materialId = (int) $params['id'];
+
+        if (!$this->verifyMaterialOwnership($materialId)) {
             Response::error('Material not found', 404);
+            return;
         }
 
-        $stmt = $this->db->prepare('DELETE FROM factory_materials WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        // Check if material is used in any batches
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM batch_materials WHERE factory_material_id = ?');
+        $stmt->execute([$materialId]);
+        $usageCount = (int) $stmt->fetchColumn();
 
-        Response::success(['deleted' => (int)$params['id']]);
+        if ($usageCount > 0) {
+            // Material is used - soft delete (deactivate)
+            $stmt = $this->db->prepare('UPDATE factory_materials SET _is_active = FALSE WHERE id = ?');
+            $stmt->execute([$materialId]);
+            Response::success(['deactivated' => $materialId, 'reason' => 'Material is used in ' . $usageCount . ' batch(es)']);
+        } else {
+            // Material is not used - hard delete
+            $stmt = $this->db->prepare('DELETE FROM factory_materials WHERE id = ?');
+            $stmt->execute([$materialId]);
+            Response::success(['deleted' => $materialId]);
+        }
     }
 }

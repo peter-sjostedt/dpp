@@ -26,9 +26,9 @@
                     fas1: true,
                     fas2: true,
                     items: [
-                        { table: 'companies', desc: 'Ditt företag', example: 'VårdTex AB' },
-                        { table: 'brands', desc: 'Dina varumärken', example: 'VårdTex Pro' },
-                        { table: 'suppliers', desc: 'Dina fabriker', example: 'Têxtil Hospitalar Porto' },
+                        { table: 'brands', desc: 'Varumärken (med API-nyckel)', example: 'VårdTex Pro' },
+                        { table: 'suppliers', desc: 'Fabriker (med API-nyckel)', example: 'Têxtil Hospitalar Porto' },
+                        { table: 'brand_suppliers', desc: 'Relationer mellan varumärke och fabrik', example: 'VårdTex ↔ Porto' },
                     ]
                 },
                 {
@@ -278,8 +278,8 @@
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                             <h3 className="font-bold text-green-800 mb-2">♻️ Registrera en gång</h3>
                             <ul className="text-sm text-green-700 space-y-1">
-                                <li>• Företag & varumärke</li>
-                                <li>• Fabriker</li>
+                                <li>• Varumärken & fabriker</li>
+                                <li>• Relationer varumärke ↔ fabrik</li>
                                 <li>• Tyger + certifikat</li>
                                 <li>• Produkter + GTIN + skötselråd</li>
                                 <li>• Databärartyp & placering</li>
