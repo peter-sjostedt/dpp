@@ -1,137 +1,264 @@
 -- ============================================
--- DPP Platform - Del 2: Products + Batches
+-- DPP Products, Variants, Batches, Items
+-- Factory Materials with compositions
 -- ============================================
 
-USE petersjo_dpp;
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS items;
+DROP TABLE IF EXISTS batch_materials;
+DROP TABLE IF EXISTS batches;
+DROP TABLE IF EXISTS product_variants;
+DROP TABLE IF EXISTS product_components;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS factory_material_certifications;
+DROP TABLE IF EXISTS factory_material_compositions;
+DROP TABLE IF EXISTS factory_material_supply_chain;
+DROP TABLE IF EXISTS factory_materials;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================
+-- FACTORY MATERIALS
+-- ============================================
+
+CREATE TABLE factory_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    supplier_id INT NOT NULL,
+    material_name VARCHAR(255) NOT NULL,
+    material_type VARCHAR(50) COMMENT 'Textile, Leather, Rubber',
+    description TEXT,
+    _is_active BOOLEAN DEFAULT TRUE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+    INDEX idx_factory_materials_supplier (supplier_id)
+);
+
+CREATE TABLE factory_material_compositions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    factory_material_id INT NOT NULL,
+    content_name VARCHAR(50) COMMENT '350,20 - Cotton, Polyester',
+    content_value DECIMAL(5,2) COMMENT '350,21 - Percentage',
+    content_source VARCHAR(50) COMMENT '350,22 - Fiber source',
+    recycled BOOLEAN COMMENT '351,00',
+    recycled_percentage DECIMAL(5,2) COMMENT '351,10',
+    recycled_input_source VARCHAR(50) COMMENT '351,20 - Post-consumer etc',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (factory_material_id) REFERENCES factory_materials(id) ON DELETE CASCADE,
+    INDEX idx_compositions_material (factory_material_id)
+);
+
+CREATE TABLE factory_material_certifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    factory_material_id INT NOT NULL,
+    certification VARCHAR(100) COMMENT '501,00 - GOTS, GRS, Oeko-Tex',
+    certification_id VARCHAR(100),
+    valid_until DATE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (factory_material_id) REFERENCES factory_materials(id) ON DELETE CASCADE,
+    INDEX idx_certs_material (factory_material_id)
+);
+
+CREATE TABLE factory_material_supply_chain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    factory_material_id INT NOT NULL,
+    sequence INT NOT NULL DEFAULT 0,
+    process_step VARCHAR(100) COMMENT 'spinning, weaving, dyeing, finishing',
+    country VARCHAR(2) COMMENT 'ISO country code',
+    facility_name VARCHAR(255),
+    facility_identifier VARCHAR(100),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (factory_material_id) REFERENCES factory_materials(id) ON DELETE CASCADE,
+    INDEX idx_supply_chain_material (factory_material_id)
+);
+
+-- ============================================
+-- PRODUCTS
+-- ============================================
 
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,
     brand_id INT NOT NULL,
-    gtin VARCHAR(14),
-    product_name VARCHAR(255) NOT NULL,
-    description TEXT,
-    photo_url VARCHAR(500),
-    article_number VARCHAR(100),
-    commodity_code_system VARCHAR(50),
-    commodity_code_number VARCHAR(50),
-    year_of_sale YEAR,
-    season_of_sale ENUM('SP', 'SU', 'AW', 'FW'),
-    price_currency CHAR(3) DEFAULT 'EUR',
-    msrp DECIMAL(10,2),
-    resale_price DECIMAL(10,2),
-    category ENUM('clothing', 'accessories', 'footwear', 'other'),
-    product_group VARCHAR(50),
-    line VARCHAR(100),
-    garment_type VARCHAR(100),
-    age_group VARCHAR(50),
-    gender ENUM('male', 'female', 'unisex'),
-    market_segment ENUM('mass-market', 'mid-price', 'premium', 'luxury'),
-    water_properties ENUM('none', 'waterproof', 'water_repellent', 'water_resistant'),
-    weight_kg DECIMAL(8,4),
-    _is_active BOOLEAN DEFAULT TRUE,
-    data_carrier_type ENUM('RFID', 'NFC', 'QR', 'barcode'),
-    data_carrier_material VARCHAR(100),
-    data_carrier_location VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (brand_id) REFERENCES brands(id),
-    UNIQUE KEY unique_product (brand_id, gtin),
-    INDEX idx_products_brand (brand_id),
-    INDEX idx_products_gtin (gtin),
-    INDEX idx_products_active (_is_active)
-);
 
-CREATE TABLE product_variants (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_id INT NOT NULL,
-    sku VARCHAR(100) NOT NULL,
-    size VARCHAR(20),
-    size_system VARCHAR(10),
-    color_name VARCHAR(100),
-    color_code ENUM('black', 'white', 'grey', 'navy', 'blue', 'red', 'green', 'yellow', 'orange', 'pink', 'purple', 'brown', 'beige', 'multicolour', 'print', 'other'),
+    -- Product ID (300-serien)
+    product_id_system VARCHAR(50) COMMENT '300,00 - GTIN, SKU, Style Number',
+    product_id_value VARCHAR(100) COMMENT '300,10',
+    product_name VARCHAR(255) NOT NULL COMMENT '301,00',
+    description TEXT COMMENT '302,00',
+    photo_url VARCHAR(500) COMMENT '303,00',
+    article_number VARCHAR(100) COMMENT '304,00 - Style + color',
+    commodity_code_system VARCHAR(50) COMMENT '306,00',
+    commodity_code_number VARCHAR(20) COMMENT '306,10 - HS code',
+    year_of_sale INT COMMENT '307,00',
+    season_of_sale VARCHAR(10) COMMENT '307,10 - SP/SU',
+    price_currency VARCHAR(3) COMMENT '308,00',
+    msrp DECIMAL(10,2) COMMENT '308,10',
+    resale_price DECIMAL(10,2) COMMENT '308,20',
+
+    -- Kategorisering (312-317)
+    category VARCHAR(50) COMMENT '312,00 - clothing/accessories/footwear',
+    product_group VARCHAR(50) COMMENT '312,10 - Top/Bottom etc',
+    type_line_concept VARCHAR(50) COMMENT '313,00 - Active Wear, Sleep Wear',
+    type_item VARCHAR(50) COMMENT '314,00 - Jacket, Pants, Blouse',
+    age_group VARCHAR(50) COMMENT '315,00',
+    gender VARCHAR(20) COMMENT '316,00',
+    market_segment VARCHAR(50) COMMENT '317,00 - mass-market/mid-price/premium/luxury',
+
+    -- Egenskaper
+    water_properties VARCHAR(100) COMMENT '318,00',
+    net_weight DECIMAL(10,4) COMMENT '319,00 - kg',
+    weight_unit VARCHAR(10) DEFAULT 'kg' COMMENT '319,10',
+
+    -- Digital Identifier (370-serien)
+    data_carrier_type VARCHAR(50) COMMENT '370,00 - RFID, NFC, QR',
+    data_carrier_material VARCHAR(50) COMMENT '370,10',
+    data_carrier_location VARCHAR(100) COMMENT '370,20',
+
     _is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_id) REFERENCES products(id),
-    UNIQUE KEY unique_variant (product_id, sku),
-    INDEX idx_variants_product (product_id),
-    INDEX idx_variants_sku (sku)
-);
-
-CREATE TABLE batches (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    product_variant_id INT NOT NULL,
-    batch_number VARCHAR(100) NOT NULL,
-    po_number VARCHAR(100),
-    production_date DATE,
-    quantity INT,
-    _status ENUM('planned', 'in_production', 'completed', 'shipped') DEFAULT 'planned',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (product_variant_id) REFERENCES product_variants(id),
-    UNIQUE KEY unique_batch (product_variant_id, batch_number),
-    INDEX idx_batches_variant (product_variant_id)
-);
 
-CREATE TABLE batch_materials (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    batch_id INT NOT NULL,
-    factory_material_id INT NOT NULL,
-    component_type ENUM('body_fabric', 'lining', 'trim', 'padding', 'other') NOT NULL,
-    quantity_meters DECIMAL(10,2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE,
-    FOREIGN KEY (factory_material_id) REFERENCES factory_materials(id) ON DELETE RESTRICT,
-    INDEX idx_batch_materials_batch (batch_id),
-    INDEX idx_batch_materials_material (factory_material_id)
-);
-
-CREATE TABLE batch_suppliers (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    batch_id INT NOT NULL,
-    supplier_id INT NOT NULL,
-    production_stage ENUM('confection', 'dyeing_printing', 'weaving_knitting', 'spinning', 'other') NOT NULL,
-    country_of_origin CHAR(2),
-    FOREIGN KEY (batch_id) REFERENCES batches(id),
-    FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-);
-
-CREATE TABLE items (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    batch_id INT NOT NULL,
-    product_variant_id INT NOT NULL,
-    tid VARCHAR(50),
-    sgtin VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (batch_id) REFERENCES batches(id),
-    FOREIGN KEY (product_variant_id) REFERENCES product_variants(id),
-    INDEX idx_items_batch (batch_id),
-    INDEX idx_items_variant (product_variant_id),
-    INDEX idx_items_tid (tid),
-    INDEX idx_items_sgtin (sgtin)
+    FOREIGN KEY (brand_id) REFERENCES brands(id) ON DELETE CASCADE,
+    INDEX idx_products_brand (brand_id)
 );
 
 -- ============================================
--- LEGACY TABLES (för bakåtkompatibilitet)
+-- PRODUCT COMPONENTS (Material composition)
 -- ============================================
 
 CREATE TABLE product_components (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_id INT NOT NULL,
-    component_type ENUM('body_fabric', 'lining', 'trim', 'padding', 'other') NOT NULL,
-    component_weight DECIMAL(8,4),
-    FOREIGN KEY (product_id) REFERENCES products(id)
+
+    -- Material Information (350-serien)
+    component VARCHAR(50) COMMENT '350,00 - Body fabric, trim, lining',
+    material VARCHAR(50) COMMENT '350,10 - Textile, Leather, Rubber',
+    content_name VARCHAR(50) COMMENT '350,20 - Cotton, Polyester',
+    content_value DECIMAL(5,2) COMMENT '350,21 - Percentage',
+    content_source VARCHAR(50) COMMENT '350,22 - Fiber source',
+    material_trademarks VARCHAR(255) COMMENT '350,23 - Circulose, Tencel',
+    content_name_other VARCHAR(100) COMMENT '350,30',
+    trim_type VARCHAR(50) COMMENT '350,40 - Zipper, button',
+    component_weight DECIMAL(10,4) COMMENT '350,50',
+
+    -- Recycled (351)
+    recycled BOOLEAN COMMENT '351,00',
+    recycled_percentage DECIMAL(5,2) COMMENT '351,10',
+    recycled_input_source VARCHAR(50) COMMENT '351,20 - Post-consumer etc',
+
+    -- Thread, ink, dye, finishes (353-357)
+    sewing_thread_content VARCHAR(50) COMMENT '353,00',
+    print_ink_type VARCHAR(50) COMMENT '354,00',
+    dye_class VARCHAR(50) COMMENT '355,00',
+    dye_class_standard VARCHAR(50) COMMENT '355,10',
+    finishes VARCHAR(255) COMMENT '356,00 - Anti-microbial etc',
+    pattern VARCHAR(50) COMMENT '357,00 - Heathered, Chevron',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    INDEX idx_components_product (product_id)
 );
 
-CREATE TABLE component_materials (
+-- ============================================
+-- PRODUCT VARIANTS (Size/Color combinations)
+-- ============================================
+
+CREATE TABLE product_variants (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    component_id INT NOT NULL,
-    material_type ENUM('textile', 'leather', 'rubber', 'metal', 'plastic', 'other') NOT NULL,
-    fiber_type VARCHAR(100),
-    percentage DECIMAL(5,2),
-    fiber_source VARCHAR(100),
-    material_trademarks VARCHAR(255),
-    is_recycled BOOLEAN DEFAULT FALSE,
-    recycled_percentage DECIMAL(5,2),
-    recycled_input_source ENUM('pre_consumer', 'post_consumer', 'post_consumer_packaging', 'other'),
-    FOREIGN KEY (component_id) REFERENCES product_components(id)
+    product_id INT NOT NULL,
+
+    item_number VARCHAR(100) COMMENT '304,10 - Style + color + size',
+    size VARCHAR(50) COMMENT '309,00',
+    size_country_code VARCHAR(2) COMMENT '309,10',
+    color_brand VARCHAR(100) COMMENT '310,00 - Brand color name',
+    color_general VARCHAR(50) COMMENT '311,00 - Standard color',
+    gtin VARCHAR(14) COMMENT 'GTIN for this variant',
+
+    _is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+    INDEX idx_variants_product (product_id),
+    INDEX idx_variants_gtin (gtin)
+);
+
+-- ============================================
+-- BATCHES (Production runs)
+-- ============================================
+
+CREATE TABLE batches (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    brand_id INT NOT NULL,
+    supplier_id INT NOT NULL,
+    product_id INT NOT NULL,
+
+    batch_number VARCHAR(100) NOT NULL,
+    po_number VARCHAR(100) COMMENT '305,00',
+    production_date DATE,
+    quantity INT,
+    _status VARCHAR(50) DEFAULT 'planned' COMMENT 'planned/in_production/completed',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (brand_id) REFERENCES brands(id),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+    FOREIGN KEY (product_id) REFERENCES products(id),
+    INDEX idx_batches_brand (brand_id),
+    INDEX idx_batches_product (product_id)
+);
+
+-- ============================================
+-- BATCH MATERIALS (Links batches to factory materials)
+-- ============================================
+
+CREATE TABLE batch_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    batch_id INT NOT NULL,
+    factory_material_id INT NOT NULL,
+    component VARCHAR(50) COMMENT 'Body fabric, trim, lining',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE,
+    FOREIGN KEY (factory_material_id) REFERENCES factory_materials(id),
+    INDEX idx_batch_materials_batch (batch_id)
+);
+
+-- ============================================
+-- ITEMS (Individual serialized products)
+-- ============================================
+
+CREATE TABLE items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    batch_id INT NOT NULL,
+    product_variant_id INT,
+
+    -- Unique identifiers (300,20)
+    unique_product_id VARCHAR(100) COMMENT '300,20',
+    tid VARCHAR(100) COMMENT 'RFID Tag ID',
+    sgtin VARCHAR(100) COMMENT 'Serialized GTIN',
+    serial_number VARCHAR(100),
+
+    _status VARCHAR(50) DEFAULT 'produced' COMMENT 'produced/shipped/sold/returned/recycled',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_variant_id) REFERENCES product_variants(id),
+    INDEX idx_items_batch (batch_id),
+    INDEX idx_items_sgtin (sgtin),
+    INDEX idx_items_tid (tid)
 );
