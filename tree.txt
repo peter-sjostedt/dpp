@@ -1,88 +1,71 @@
-dpp/
-├── .claude/
-│   ├── settings.json
-│   └── settings.local.json
-├── database/
-│   ├── migrations/
-│   │   ├── 001_add_tenant_auth.sql
-│   │   ├── 002_create_brand_suppliers.sql
-│   │   ├── 003_add_brand_id.sql
-│   │   ├── 004_remove_company_id.sql
-│   │   ├── 005_drop_company_tables.sql
-│   │   ├── 006_expanded_testdata.sql
-│   │   └── add_multi_tenant.sql
-│   ├── schema/
-│   │   ├── 01_foundation.sql
-│   │   ├── 02_products_batches.sql
-│   │   ├── 03_care_compliance_export.sql
-│   │   ├── 04_testdata.sql
-│   │   ├── 05_testdata_continued.sql
-│   │   └── 06_testdata_items.sql
-│   ├── reset_database.sql
-│   └── setup.sql
-├── public/
-│   ├── docs/
-│   │   ├── dataflow.html
-│   │   └── referensdokument.html
-│   ├── admin-tenants.php
-│   ├── api.php
-│   ├── dpp.php
-│   ├── dpp-item.php
-│   ├── dpp-product.php
-│   ├── index.php
-│   ├── login.php
-│   ├── logout.php
-│   ├── reset-database.php
-│   ├── test.php
-│   ├── test-batches.php
-│   ├── test-brands.php
-│   ├── test-brand-suppliers.php
-│   ├── test-companies.php
-│   ├── test-items.php
-│   ├── test-materials.php
-│   ├── test-products.php
-│   ├── test-suppliers.php
-│   └── test-variants.php
-├── routes/
-│   └── api/
-│       ├── batches.php
-│       ├── brands.php
-│       ├── brand-suppliers.php
-│       ├── items.php
-│       ├── materials.php
-│       ├── products.php
-│       ├── suppliers.php
-│       ├── tenants.php
-│       └── variants.php
-├── src/
-│   ├── Config/
-│   │   ├── Auth.php
-│   │   ├── Database.php
-│   │   └── TenantContext.php
-│   ├── Controllers/
-│   │   ├── BatchController.php
-│   │   ├── BatchMaterialController.php
-│   │   ├── BrandController.php
-│   │   ├── BrandSupplierController.php
-│   │   ├── CareInformationController.php
-│   │   ├── CertificationController.php
-│   │   ├── CircularityController.php
-│   │   ├── ComplianceController.php
-│   │   ├── DppExportController.php
-│   │   ├── FactoryMaterialCertificationController.php
-│   │   ├── FactoryMaterialCompositionController.php
-│   │   ├── FactoryMaterialController.php
-│   │   ├── FactoryMaterialSupplyChainController.php
-│   │   ├── ItemController.php
-│   │   ├── ProductComponentController.php
-│   │   ├── ProductController.php
-│   │   ├── ProductVariantController.php
-│   │   ├── SupplierController.php
-│   │   ├── SustainabilityController.php
-│   │   └── TenantAwareController.php
-│   └── Helpers/
-│       ├── Response.php
-│       └── Validator.php
-├── vendor/                    (composer dependencies)
-├── .htaccess
-└── composer.json
+./database/migrations/001_add_tenant_auth.sql
+./database/migrations/002_create_brand_suppliers.sql
+./database/migrations/003_add_brand_id.sql
+./database/migrations/004_remove_company_id.sql
+./database/migrations/005_drop_company_tables.sql
+./database/migrations/006_expanded_testdata.sql
+./database/migrations/007_add_lei_gs1.sql
+./database/migrations/add_multi_tenant.sql
+./database/reset_database.sql
+./database/schema/01_foundation.sql
+./database/schema/02_products_batches.sql
+./database/schema/03_care_compliance_export.sql
+./database/schema/04_testdata.sql
+./database/schema/05_testdata_continued.sql
+./database/schema/06_testdata_items.sql
+./database/setup.sql
+./public/admin-tenants.php
+./public/api.php
+./public/docs/dataflow.html
+./public/docs/referensdokument.html
+./public/dpp.php
+./public/dpp-item.php
+./public/dpp-product.php
+./public/index.php
+./public/login.php
+./public/logout.php
+./public/reset-database.php
+./public/test.php
+./public/test-batches.php
+./public/test-brands.php
+./public/test-brand-suppliers.php
+./public/test-items.php
+./public/test-materials.php
+./public/test-products.php
+./public/test-suppliers.php
+./public/test-variants.php
+./routes/api/batches.php
+./routes/api/brands.php
+./routes/api/brand-suppliers.php
+./routes/api/items.php
+./routes/api/materials.php
+./routes/api/products.php
+./routes/api/suppliers.php
+./routes/api/tenants.php
+./routes/api/variants.php
+./src/Config/Auth.php
+./src/Config/Database.php
+./src/Config/TenantContext.php
+./src/Controllers/BatchController.php
+./src/Controllers/BatchMaterialController.php
+./src/Controllers/BrandController.php
+./src/Controllers/BrandSupplierController.php
+./src/Controllers/CareInformationController.php
+./src/Controllers/CertificationController.php
+./src/Controllers/CircularityController.php
+./src/Controllers/ComplianceController.php
+./src/Controllers/DppExportController.php
+./src/Controllers/FactoryMaterialCertificationController.php
+./src/Controllers/FactoryMaterialCompositionController.php
+./src/Controllers/FactoryMaterialController.php
+./src/Controllers/FactoryMaterialSupplyChainController.php
+./src/Controllers/ItemController.php
+./src/Controllers/ProductComponentController.php
+./src/Controllers/ProductController.php
+./src/Controllers/ProductVariantController.php
+./src/Controllers/SupplierController.php
+./src/Controllers/SustainabilityController.php
+./src/Controllers/TenantAwareController.php
+./src/Helpers/Response.php
+./src/Helpers/Validator.php
+./tree.txt
