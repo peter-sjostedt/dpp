@@ -31,14 +31,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm']) && $_POST[
         // Inaktivera foreign key checks för att kunna droppa tabeller
         $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-        // Använd den nya multi-tenant reset-filen
-        $resetFile = __DIR__ . '/../database/reset_database.sql';
+        // Ladda schema-filer och testdata i ordning
+        $sqlFiles = [
+            __DIR__ . '/../database/schema/01_foundation.sql',
+            __DIR__ . '/../database/schema/02_products_batches.sql',
+            __DIR__ . '/../database/schema/03_care_compliance.sql',
+            __DIR__ . '/../database/testdata/healthcare_textiles.sql',
+        ];
 
-        if (file_exists($resetFile)) {
-            $sql = file_get_contents($resetFile);
+        foreach ($sqlFiles as $sqlFile) {
+            if (!file_exists($sqlFile)) {
+                throw new Exception('SQL-fil saknas: ' . $sqlFile);
+            }
+
+            $sql = file_get_contents($sqlFile);
 
             // Ta bort USE-statement (vi är redan anslutna till rätt databas)
             $sql = preg_replace('/^USE\s+\w+;\s*/mi', '', $sql);
+
+            // Ta bort SOURCE-kommandon (hanteras via PHP)
+            $sql = preg_replace('/^SOURCE\s+.*$/mi', '', $sql);
 
             // Kör varje statement separat
             $statements = array_filter(
@@ -62,8 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm']) && $_POST[
                     }
                 }
             }
-        } else {
-            throw new Exception('Reset-fil saknas: ' . $resetFile);
         }
 
         // Återaktivera foreign key checks
@@ -167,9 +177,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm']) && $_POST[
                     <p>Detta kommer att <strong>radera all befintlig data</strong> och ersätta den med testdata.</p>
                     <p>Databasen återskapas med multi-tenant struktur:</p>
                     <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>4 brands med API-nycklar</li>
-                        <li>5 suppliers med API-nycklar</li>
-                        <li>9 brand-supplier relationer</li>
+                        <li>3 brands med API-nycklar</li>
+                        <li>3 suppliers med API-nycklar</li>
+                        <li>6 brand-supplier relationer</li>
+                        <li>Healthcare textiles testdata</li>
                     </ul>
                 </div>
 
