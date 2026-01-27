@@ -609,15 +609,11 @@ if ($selectedItemId) {
     const itemIdHidden = document.getElementById('item_id_hidden');
 
     // Pre-fill dropdowns if item is already selected
-    <?php if ($itemData): ?>
-    const preselectedData = {
+    const preselectedData = <?php if ($itemData): ?>{
         productId: <?= $itemData['product_id'] ?>,
         batchId: <?= $itemData['batch_id'] ?>,
         itemId: <?= $itemData['item_id'] ?>
-    };
-    <?php else: ?>
-    const preselectedData = null;
-    <?php endif; ?>
+    }<?php else: ?>null<?php endif; ?>;
 
     // Product change -> load batches
     productSelect.addEventListener('change', async function() {
