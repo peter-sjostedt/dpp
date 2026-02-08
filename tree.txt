@@ -1,61 +1,95 @@
-./database/load_testdata.sql
-./database/reset_schema.sql
-./database/schema/01_foundation.sql
-./database/schema/02_products_batches.sql
-./database/schema/03_care_compliance.sql
-./database/testdata/healthcare_textiles.sql
-./public/admin-tenants.php
-./public/api.php
-./public/docs/dataflow.html
-./public/docs/referensdokument.html
-./public/dpp.php
-./public/dpp-item.php
-./public/dpp-product.php
-./public/index.php
-./public/login.php
-./public/logout.php
-./public/reset-database.php
-./public/test.php
-./public/test-batches.php
-./public/test-brands.php
-./public/test-brand-suppliers.php
-./public/test-items.php
-./public/test-materials.php
-./public/test-products.php
-./public/test-suppliers.php
-./public/test-variants.php
-./routes/api/batches.php
-./routes/api/brands.php
-./routes/api/brand-suppliers.php
-./routes/api/items.php
-./routes/api/materials.php
-./routes/api/products.php
-./routes/api/suppliers.php
-./routes/api/tenants.php
-./routes/api/variants.php
-./src/Config/Auth.php
-./src/Config/Database.php
-./src/Config/TenantContext.php
-./src/Controllers/BatchController.php
-./src/Controllers/BatchMaterialController.php
-./src/Controllers/BrandController.php
-./src/Controllers/BrandSupplierController.php
-./src/Controllers/CareInformationController.php
-./src/Controllers/CertificationController.php
-./src/Controllers/CircularityController.php
-./src/Controllers/ComplianceController.php
-./src/Controllers/DppExportController.php
-./src/Controllers/FactoryMaterialCertificationController.php
-./src/Controllers/FactoryMaterialCompositionController.php
-./src/Controllers/FactoryMaterialController.php
-./src/Controllers/FactoryMaterialSupplyChainController.php
-./src/Controllers/ItemController.php
-./src/Controllers/ProductComponentController.php
-./src/Controllers/ProductController.php
-./src/Controllers/ProductVariantController.php
-./src/Controllers/SupplierController.php
-./src/Controllers/SustainabilityController.php
-./src/Controllers/TenantAwareController.php
-./src/Helpers/Response.php
-./src/Helpers/Validator.php
-./tree.txt
+dpp/
+├── composer.json
+├── .htaccess
+│
+├── database/
+│   ├── schema/
+│   │   ├── 01_foundation.sql          # Brands, Suppliers, Brand-Suppliers
+│   │   ├── 02_products_batches.sql    # Products, Variants, Batches, Items
+│   │   └── 03_care_compliance.sql     # Care, Compliance, Certifications, Circularity, Sustainability
+│   ├── testdata/
+│   │   └── healthcare_textiles.sql    # Test data for healthcare textiles
+│   ├── reset_schema.sql               # Drop and recreate all tables
+│   └── load_testdata.sql              # Load test data
+│
+├── public/
+│   ├── .htaccess                      # URL rewriting rules
+│   ├── index.php                      # Landing page
+│   ├── api.php                        # API entry point (routing)
+│   ├── login.php                      # Session login
+│   ├── logout.php                     # Session logout
+│   │
+│   ├── docs/
+│   │   ├── dataflow.html              # Data flow documentation
+│   │   └── referensdokument.html      # Reference document
+│   │
+│   ├── dpp-product.php                # DPP viewer - Product level (QR/GTIN)
+│   ├── dpp-item.php                   # DPP viewer - Item level (RFID)
+│   ├── dpp.php                        # Legacy DPP viewer
+│   │
+│   ├── test.php                       # Test panel - main menu
+│   ├── test-all-api.php               # Automated API test suite (55+ endpoints)
+│   ├── test-brands.php                # Test panel - Brands
+│   ├── test-suppliers.php             # Test panel - Suppliers
+│   ├── test-brand-suppliers.php       # Test panel - Brand-Supplier relations
+│   ├── test-products.php              # Test panel - Products
+│   ├── test-variants.php              # Test panel - Product Variants
+│   ├── test-batches.php               # Test panel - Batches
+│   ├── test-items.php                 # Test panel - Items
+│   ├── test-materials.php             # Test panel - Factory Materials
+│   │
+│   ├── admin-tenants.php              # Admin - Manage tenants
+│   └── reset-database.php             # Admin - Reset database
+│
+├── routes/
+│   └── api/
+│       ├── admin.php                  # Admin API routes (X-Admin-Key)
+│       ├── tenants.php                # Tenant list routes (no auth)
+│       ├── brands.php                 # Brand routes
+│       ├── suppliers.php              # Supplier routes
+│       ├── brand-suppliers.php        # Brand-Supplier relation routes
+│       ├── products.php               # Product routes + Care/Compliance/etc
+│       ├── variants.php               # Product Variant routes
+│       ├── batches.php                # Batch routes + Batch Materials
+│       ├── items.php                  # Item routes
+│       └── materials.php              # Factory Material routes + Compositions/Certs/Supply Chain
+│
+└── src/
+    ├── Config/
+    │   ├── Database.php               # PDO database connection (singleton)
+    │   ├── Auth.php                   # Session authentication
+    │   ├── AdminAuth.php              # Admin API authentication (X-Admin-Key)
+    │   └── TenantContext.php          # Tenant API authentication (X-API-Key)
+    │
+    ├── Controllers/
+    │   ├── TenantAwareController.php  # Base controller with access control methods
+    │   ├── AdminController.php        # Admin API - CRUD brands/suppliers/relations
+    │   │
+    │   ├── BrandController.php        # Tenant API - Brands
+    │   ├── SupplierController.php     # Tenant API - Suppliers
+    │   ├── BrandSupplierController.php # Tenant API - Brand-Supplier relations
+    │   │
+    │   ├── ProductController.php      # Tenant API - Products
+    │   ├── ProductVariantController.php # Tenant API - Product Variants
+    │   ├── ProductComponentController.php # Tenant API - Product Components
+    │   │
+    │   ├── CareInformationController.php # Tenant API - Care Information
+    │   ├── ComplianceController.php   # Tenant API - Compliance Information
+    │   ├── CertificationController.php # Tenant API - Product Certifications
+    │   ├── CircularityController.php  # Tenant API - Circularity Information
+    │   ├── SustainabilityController.php # Tenant API - Sustainability Information
+    │   │
+    │   ├── BatchController.php        # Tenant API - Batches
+    │   ├── BatchMaterialController.php # Tenant API - Batch Materials
+    │   ├── ItemController.php         # Tenant API - Items
+    │   │
+    │   ├── FactoryMaterialController.php # Tenant API - Factory Materials
+    │   ├── FactoryMaterialCompositionController.php # Tenant API - Material Compositions
+    │   ├── FactoryMaterialCertificationController.php # Tenant API - Material Certifications
+    │   ├── FactoryMaterialSupplyChainController.php # Tenant API - Material Supply Chain
+    │   │
+    │   └── DppExportController.php    # Tenant API - DPP Export (preview/validate/export)
+    │
+    └── Helpers/
+        ├── Response.php               # JSON response helper
+        └── Validator.php              # Input validation helper
