@@ -1,6 +1,7 @@
 -- ============================================
 -- DPP Test Data: Healthcare Textiles
 -- Realistic data for scrubs, patient gowns, lab coats
+-- Updated: purchase_orders + batches skapas av supplier
 -- ============================================
 
 -- ============================================
@@ -181,48 +182,86 @@ INSERT INTO product_variants (id, product_id, item_number, size, size_country_co
 (61, 20, 'HT-BAS-001-WHT-L', 'L', 'EU', 'White', 'white', '64300123450012', TRUE);
 
 -- ============================================
--- BATCHES
+-- PURCHASE ORDERS (Skapas av Brand)
 -- ============================================
 
-INSERT INTO batches (id, brand_id, supplier_id, product_id, batch_number, po_number, production_date, quantity, _status) VALUES
-(1, 1, 1, 1, 'VT-2025-001', 'PO-VT-2025-001', '2025-01-15', 500, 'completed'),
-(2, 1, 1, 2, 'VT-2025-002', 'PO-VT-2025-001', '2025-01-15', 500, 'completed'),
-(3, 1, 1, 3, 'VT-2025-003', 'PO-VT-2025-002', '2025-01-20', 200, 'completed'),
-(4, 1, 1, 4, 'VT-2025-004', 'PO-VT-2025-003', '2025-01-25', 300, 'in_production'),
-(10, 2, 1, 10, 'MW-2025-001', 'PO-MW-2025-001', '2025-01-18', 400, 'completed'),
-(20, 3, 2, 20, 'HT-2025-001', 'PO-HT-2025-001', '2025-01-22', 1000, 'completed');
+INSERT INTO purchase_orders (id, brand_id, supplier_id, product_id, po_number, quantity, requested_delivery_date, _status) VALUES
+-- VårdTex -> Porto: Scrubs Tunika + Byxa (samma PO, två produkter)
+(1, 1, 1, 1, 'PO-VT-2025-001A', 500, '2025-02-28', 'fulfilled'),
+(2, 1, 1, 2, 'PO-VT-2025-001B', 500, '2025-02-28', 'fulfilled'),
+-- VårdTex -> Porto: Labbrock
+(3, 1, 1, 3, 'PO-VT-2025-002', 200, '2025-03-15', 'fulfilled'),
+-- VårdTex -> Porto: Patientskjorta (pågående)
+(4, 1, 1, 4, 'PO-VT-2025-003', 300, '2025-03-31', 'accepted'),
+-- MediWear -> Porto: Scrub Top
+(5, 2, 1, 10, 'PO-MW-2025-001', 400, '2025-02-28', 'fulfilled'),
+-- HealthTex -> Baltic: Basic Tunic
+(6, 3, 2, 20, 'PO-HT-2025-001', 1000, '2025-03-15', 'fulfilled');
 
 -- ============================================
--- BATCH MATERIALS
+-- BATCHES (Skapas av Supplier vid produktion)
+-- En batch = en produktionsomgång med specifika material-inputs.
+-- PO 1 (500 tunikaer) delas upp i 2 batchar pga byte av tygrulle.
+-- ============================================
+
+INSERT INTO batches (id, purchase_order_id, batch_number, production_date, quantity, _status) VALUES
+-- PO 1: Scrubs Tunika, Porto delade upp i 2 batchar (byte av tygrulle)
+(1, 1, 'PT-2025-001', '2025-01-15', 350, 'completed'),
+(2, 1, 'PT-2025-002', '2025-01-22', 150, 'completed'),
+-- PO 2: Scrubs Byxa, en batch
+(3, 2, 'PT-2025-003', '2025-01-15', 500, 'completed'),
+-- PO 3: Labbrock, en batch
+(4, 3, 'PT-2025-004', '2025-01-20', 200, 'completed'),
+-- PO 4: Patientskjorta, pågående
+(5, 4, 'PT-2025-005', '2025-02-01', 300, 'in_production'),
+-- PO 5: MediWear Scrub Top, en batch
+(10, 5, 'PT-2025-010', '2025-01-18', 400, 'completed'),
+-- PO 6: HealthTex Basic Tunic, Baltic, en batch
+(20, 6, 'BT-2025-001', '2025-01-22', 1000, 'completed');
+
+-- ============================================
+-- BATCH MATERIALS (Supplier kopplar vilka tygleveranser som användes)
+-- Batch 1 och 2 använder samma typ av tyg men olika leveranser
+-- (representeras som samma factory_material i detta testdata)
 -- ============================================
 
 INSERT INTO batch_materials (batch_id, factory_material_id, component) VALUES
-(1, 1, 'Body fabric'),
-(2, 1, 'Body fabric'),
-(3, 3, 'Body fabric'),
-(4, 4, 'Body fabric'),
-(10, 1, 'Body fabric'),
-(20, 10, 'Body fabric');
+(1, 1, 'Body fabric'),    -- Tunika batch 1: PolyCotton Twill rulle A
+(2, 1, 'Body fabric'),    -- Tunika batch 2: PolyCotton Twill rulle B
+(3, 1, 'Body fabric'),    -- Byxa: PolyCotton Twill
+(4, 3, 'Body fabric'),    -- Labbrock: Polyester Antimicrobial
+(5, 4, 'Body fabric'),    -- Patientskjorta: Organic Cotton
+(10, 1, 'Body fabric'),   -- MediWear Scrub Top: PolyCotton Twill
+(20, 10, 'Body fabric');   -- HealthTex Basic Tunic: Baltic Polyester
 
 -- ============================================
--- ITEMS
+-- ITEMS (Supplier registrerar vid produktion med RFID)
 -- ============================================
 
--- VårdTex items
+-- VårdTex Scrubs Tunika - Batch 1 (350 st, visar 3)
 INSERT INTO items (id, batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status) VALUES
 (1, 1, 2, 'VT-2025-001-00001', 'E280689400001001', '7350012345001.00001', '00001', 'produced'),
 (2, 1, 2, 'VT-2025-001-00002', 'E280689400001002', '7350012345001.00002', '00002', 'produced'),
-(3, 1, 2, 'VT-2025-001-00003', 'E280689400001003', '7350012345001.00003', '00003', 'shipped'),
-(4, 1, 3, 'VT-2025-001-00004', 'E280689400001004', '7350012345001.00004', '00004', 'produced'),
-(5, 2, 11, 'VT-2025-002-00001', 'E280689400002001', '7350012345002.00001', '00001', 'produced'),
-(6, 3, 20, 'VT-2025-003-00001', 'E280689400003001', '7350012345003.00001', '00001', 'produced');
+(3, 1, 3, 'VT-2025-001-00003', 'E280689400001003', '7350012345001.00003', '00003', 'shipped');
 
--- MediWear items
+-- VårdTex Scrubs Tunika - Batch 2 (150 st, visar 1)
 INSERT INTO items (id, batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status) VALUES
-(100, 10, 50, 'MW-2025-001-00001', 'E280689400010001', '7350098765001.00001', '00001', 'produced'),
-(101, 10, 50, 'MW-2025-001-00002', 'E280689400010002', '7350098765001.00002', '00002', 'produced');
+(4, 2, 2, 'VT-2025-002-00001', 'E280689400002001', '7350012345001.00004', '00001', 'produced');
 
--- HealthTex items
+-- VårdTex Scrubs Byxa - Batch 3
+INSERT INTO items (id, batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status) VALUES
+(5, 3, 11, 'VT-2025-003-00001', 'E280689400003001', '7350012345002.00001', '00001', 'produced');
+
+-- VårdTex Labbrock - Batch 4
+INSERT INTO items (id, batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status) VALUES
+(6, 4, 20, 'VT-2025-004-00001', 'E280689400004001', '7350012345003.00001', '00001', 'produced');
+
+-- MediWear Scrub Top - Batch 10
+INSERT INTO items (id, batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status) VALUES
+(100, 10, 50, 'MW-2025-010-00001', 'E280689400010001', '7350098765001.00001', '00001', 'produced'),
+(101, 10, 50, 'MW-2025-010-00002', 'E280689400010002', '7350098765001.00002', '00002', 'produced');
+
+-- HealthTex Basic Tunic - Batch 20
 INSERT INTO items (id, batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status) VALUES
 (200, 20, 60, 'HT-2025-001-00001', 'E280689400020001', '6430012345001.00001', '00001', 'produced'),
 (201, 20, 60, 'HT-2025-001-00002', 'E280689400020002', '6430012345001.00002', '00002', 'produced'),
@@ -276,5 +315,6 @@ SELECT COUNT(*) AS brand_supplier_relations FROM brand_suppliers;
 SELECT COUNT(*) AS factory_materials FROM factory_materials;
 SELECT COUNT(*) AS products FROM products;
 SELECT COUNT(*) AS product_variants FROM product_variants;
+SELECT COUNT(*) AS purchase_orders FROM purchase_orders;
 SELECT COUNT(*) AS batches FROM batches;
 SELECT COUNT(*) AS items FROM items;

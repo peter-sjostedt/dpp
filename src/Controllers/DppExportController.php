@@ -174,7 +174,8 @@ class DppExportController extends TenantAwareController
              JOIN suppliers s ON fm.supplier_id = s.id
              JOIN batch_materials bm ON bm.factory_material_id = fm.id
              JOIN batches b ON b.id = bm.batch_id
-             WHERE b.product_id = ?'
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE po.product_id = ?'
         );
         $stmt->execute([$productId]);
         $materials = $stmt->fetchAll();
@@ -209,7 +210,8 @@ class DppExportController extends TenantAwareController
              JOIN factory_materials fm ON fm.id = fmsc.factory_material_id
              JOIN batch_materials bm ON bm.factory_material_id = fm.id
              JOIN batches b ON b.id = bm.batch_id
-             WHERE b.product_id = ?
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE po.product_id = ?
              ORDER BY fmsc.sequence'
         );
         $stmt->execute([$productId]);
@@ -224,7 +226,8 @@ class DppExportController extends TenantAwareController
              JOIN factory_materials fm ON fm.supplier_id = s.id
              JOIN batch_materials bm ON bm.factory_material_id = fm.id
              JOIN batches b ON b.id = bm.batch_id
-             WHERE b.product_id = ?'
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE po.product_id = ?'
         );
         $stmt->execute([$productId]);
         $materialSuppliers = $stmt->fetchAll();
@@ -235,8 +238,9 @@ class DppExportController extends TenantAwareController
                     s.facility_registry, s.facility_identifier,
                     s.country_of_origin_confection, s.country_of_origin_dyeing, s.country_of_origin_weaving
              FROM suppliers s
-             JOIN batches b ON b.supplier_id = s.id
-             WHERE b.product_id = ?'
+             JOIN purchase_orders po ON po.supplier_id = s.id
+             JOIN batches b ON b.purchase_order_id = po.id
+             WHERE po.product_id = ?'
         );
         $stmt->execute([$productId]);
         $confectionSuppliers = $stmt->fetchAll();

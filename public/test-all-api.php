@@ -2,6 +2,12 @@
 /**
  * DPP API Test Suite
  * Testar ALLA endpoints och rapporterar fel
+ *
+ * Uppdaterad för nytt PO-flöde:
+ * - PurchaseOrderController (ny)
+ * - BatchController (supplier skapar under PO)
+ * - BatchMaterialController (supplier CRUD)
+ * - ItemController (supplier skapar)
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
@@ -23,6 +29,7 @@ $supplierId = $supplierRow['id'] ?? 1;
 // Hämta existerande IDs för tester
 $productId = $db->query("SELECT id FROM products WHERE _is_active = 1 LIMIT 1")->fetchColumn() ?: 1;
 $variantId = $db->query("SELECT id FROM product_variants WHERE _is_active = 1 LIMIT 1")->fetchColumn() ?: 1;
+$poId = $db->query("SELECT id FROM purchase_orders LIMIT 1")->fetchColumn() ?: 1;
 $batchId = $db->query("SELECT id FROM batches LIMIT 1")->fetchColumn() ?: 1;
 $itemId = $db->query("SELECT id FROM items LIMIT 1")->fetchColumn() ?: 1;
 $materialId = $db->query("SELECT id FROM factory_materials WHERE _is_active = 1 LIMIT 1")->fetchColumn() ?: 1;
@@ -89,7 +96,6 @@ function testEndpoint(string $name, string $method, string $endpoint, ?array $da
 
     $success = in_array($response['code'], $expectedCodes) && empty($response['curl_error']);
 
-    // Kontrollera även att body inte innehåller "error" för 200/201
     if ($success && in_array($response['code'], [200, 201])) {
         if (is_array($response['body']) && isset($response['body']['error'])) {
             $success = false;
@@ -132,7 +138,7 @@ $tests = [
     // ========================================
     ['Admin: GET brands', 'GET', '/admin/brands', null, $adminKey, 'admin', [200]],
     ['Admin: GET brand/{id}', 'GET', "/admin/brands/{$brandId}", null, $adminKey, 'admin', [200, 404]],
-    ['Admin: GET brand stats', 'GET', '/admin/stats', null, $adminKey, 'admin', [200]],
+    ['Admin: GET stats', 'GET', '/admin/stats', null, $adminKey, 'admin', [200]],
 
     // ========================================
     // ADMIN API - Suppliers
@@ -215,23 +221,49 @@ $tests = [
     ['Brand: GET DPP export', 'GET', "/products/{$productId}/dpp/export", null, $brandKey, 'tenant', [200, 404]],
 
     // ========================================
-    // TENANT API - Batches (Brand)
+    // TENANT API - Purchase Orders (NY!)
     // ========================================
+    // Brand
+    ['Brand: GET purchase-orders', 'GET', '/purchase-orders', null, $brandKey, 'tenant', [200]],
+    ['Brand: GET purchase-order/{id}', 'GET', "/purchase-orders/{$poId}", null, $brandKey, 'tenant', [200, 404]],
+    ['Brand: GET POs by supplier', 'GET', "/suppliers/{$supplierId}/purchase-orders", null, $brandKey, 'tenant', [200, 404]],
+    ['Brand: GET POs by product', 'GET', "/products/{$productId}/purchase-orders", null, $brandKey, 'tenant', [200, 404]],
+    // Supplier
+    ['Supplier: GET purchase-orders', 'GET', '/purchase-orders', null, $supplierKey, 'tenant', [200]],
+    ['Supplier: GET purchase-order/{id}', 'GET', "/purchase-orders/{$poId}", null, $supplierKey, 'tenant', [200, 404]],
+    ['Supplier: GET POs by supplier', 'GET', "/suppliers/{$supplierId}/purchase-orders", null, $supplierKey, 'tenant', [200, 404]],
+
+    // ========================================
+    // TENANT API - Batches (ändrad: supplier skapar)
+    // ========================================
+    // Brand (read-only)
     ['Brand: GET batches', 'GET', '/batches', null, $brandKey, 'tenant', [200]],
-    ['Brand: GET batches by product', 'GET', "/products/{$productId}/batches", null, $brandKey, 'tenant', [200]],
+    ['Brand: GET batches by PO', 'GET', "/purchase-orders/{$poId}/batches", null, $brandKey, 'tenant', [200, 404]],
     ['Brand: GET batch/{id}', 'GET', "/batches/{$batchId}", null, $brandKey, 'tenant', [200, 404]],
+    // Supplier (CRUD)
+    ['Supplier: GET batches', 'GET', '/batches', null, $supplierKey, 'tenant', [200]],
+    ['Supplier: GET batches by PO', 'GET', "/purchase-orders/{$poId}/batches", null, $supplierKey, 'tenant', [200, 404]],
+    ['Supplier: GET batch/{id}', 'GET', "/batches/{$batchId}", null, $supplierKey, 'tenant', [200, 404]],
 
     // ========================================
-    // TENANT API - Batch Materials
+    // TENANT API - Batch Materials (ändrad: supplier CRUD)
     // ========================================
-    ['Brand: GET batch materials', 'GET', "/batches/{$batchId}/materials", null, $brandKey, 'tenant', [200]],
+    // Brand (read-only)
+    ['Brand: GET batch materials', 'GET', "/batches/{$batchId}/materials", null, $brandKey, 'tenant', [200, 404]],
     ['Brand: GET batch-material/{id}', 'GET', "/batch-materials/{$batchMaterialId}", null, $brandKey, 'tenant', [200, 404]],
+    // Supplier
+    ['Supplier: GET batch materials', 'GET', "/batches/{$batchId}/materials", null, $supplierKey, 'tenant', [200, 404]],
+    ['Supplier: GET batch-material/{id}', 'GET', "/batch-materials/{$batchMaterialId}", null, $supplierKey, 'tenant', [200, 404]],
 
     // ========================================
-    // TENANT API - Items (Brand)
+    // TENANT API - Items (ändrad: supplier skapar)
     // ========================================
-    ['Brand: GET items by batch', 'GET', "/batches/{$batchId}/items", null, $brandKey, 'tenant', [200]],
+    // Brand (read-only)
+    ['Brand: GET items by batch', 'GET', "/batches/{$batchId}/items", null, $brandKey, 'tenant', [200, 404]],
     ['Brand: GET item/{id}', 'GET', "/items/{$itemId}", null, $brandKey, 'tenant', [200, 404]],
+    // Supplier
+    ['Supplier: GET items by batch', 'GET', "/batches/{$batchId}/items", null, $supplierKey, 'tenant', [200, 404]],
+    ['Supplier: GET item/{id}', 'GET', "/items/{$itemId}", null, $supplierKey, 'tenant', [200, 404]],
 
     // ========================================
     // TENANT API - Materials (Supplier)
@@ -240,6 +272,10 @@ $tests = [
     ['Supplier: GET materials by supplier', 'GET', "/suppliers/{$supplierId}/materials", null, $supplierKey, 'tenant', [200]],
     ['Supplier: GET material/{id}', 'GET', "/materials/{$materialId}", null, $supplierKey, 'tenant', [200, 404]],
     ['Supplier: GET material batches', 'GET', "/materials/{$materialId}/batches", null, $supplierKey, 'tenant', [200]],
+    // Brand (read-only via relation)
+    ['Brand: GET materials', 'GET', '/materials', null, $brandKey, 'tenant', [200]],
+    ['Brand: GET material/{id}', 'GET', "/materials/{$materialId}", null, $brandKey, 'tenant', [200, 404]],
+    ['Brand: GET material batches', 'GET', "/materials/{$materialId}/batches", null, $brandKey, 'tenant', [200]],
 
     // ========================================
     // TENANT API - Material Compositions
@@ -276,9 +312,13 @@ $tests = [
     ['Admin Auth: Invalid key rejected', 'GET', '/admin/brands', null, 'invalid_admin_key', 'admin', [401]],
 
     // ========================================
-    // Cross-tenant access tests
+    // ACCESS CONTROL - Cross-tenant rejection
     // ========================================
     ['Supplier: Cannot create product', 'POST', "/brands/{$brandId}/products", ['product_name' => 'Test'], $supplierKey, 'tenant', [403]],
+    ['Supplier: Cannot create PO', 'POST', '/purchase-orders', ['supplier_id' => $supplierId, 'product_id' => $productId, 'po_number' => 'TEST'], $supplierKey, 'tenant', [403]],
+    ['Brand: Cannot create batch', 'POST', "/purchase-orders/{$poId}/batches", ['batch_number' => 'TEST'], $brandKey, 'tenant', [403]],
+    ['Brand: Cannot create batch material', 'POST', "/batches/{$batchId}/materials", ['factory_material_id' => $materialId], $brandKey, 'tenant', [403, 404]],
+    ['Brand: Cannot create item', 'POST', "/batches/{$batchId}/items", ['serial_number' => 'TEST'], $brandKey, 'tenant', [403, 404]],
 ];
 
 // ============================================
@@ -293,7 +333,7 @@ foreach ($tests as $test) {
 // VISA RESULTAT
 // ============================================
 
-$html = true; // Sätt till false för CLI-output
+$html = true;
 
 if ($html):
 ?>
@@ -336,7 +376,7 @@ if ($html):
         <strong>Test Configuration:</strong><br>
         Brand API Key: <code><?= $brandKey ? substr($brandKey, 0, 20) . '...' : 'NOT FOUND' ?></code> (ID: <?= $brandId ?>)<br>
         Supplier API Key: <code><?= $supplierKey ? substr($supplierKey, 0, 20) . '...' : 'NOT FOUND' ?></code> (ID: <?= $supplierId ?>)<br>
-        Test IDs: Product=<?= $productId ?>, Variant=<?= $variantId ?>, Batch=<?= $batchId ?>, Item=<?= $itemId ?>, Material=<?= $materialId ?>
+        Test IDs: Product=<?= $productId ?>, Variant=<?= $variantId ?>, PO=<?= $poId ?>, Batch=<?= $batchId ?>, Item=<?= $itemId ?>, Material=<?= $materialId ?>
     </div>
 
     <div class="summary <?= $totalFailed === 0 ? 'pass' : 'fail' ?>">
@@ -401,7 +441,6 @@ if ($html):
 </html>
 <?php
 else:
-    // CLI output
     echo "\n=== DPP API TEST RESULTS ===\n\n";
     echo "Godkanda: {$totalPassed}\n";
     echo "Misslyckade: {$totalFailed}\n";

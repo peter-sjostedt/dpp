@@ -20,7 +20,8 @@ class BrandController extends TenantAwareController
                 'SELECT DISTINCT br.*
                  FROM brands br
                  JOIN products p ON p.brand_id = br.id
-                 JOIN batches b ON b.product_id = p.id
+                 JOIN purchase_orders po ON po.product_id = p.id AND po.brand_id = p.brand_id
+                 JOIN batches b ON b.purchase_order_id = po.id
                  JOIN items i ON i.batch_id = b.id
                  WHERE br.id = ?
                  ORDER BY br.brand_name'

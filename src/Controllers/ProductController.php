@@ -28,7 +28,8 @@ class ProductController extends TenantAwareController
                 'SELECT DISTINCT p.*, b.brand_name
                  FROM products p
                  LEFT JOIN brands b ON p.brand_id = b.id
-                 JOIN batches bat ON bat.product_id = p.id
+                 JOIN purchase_orders po ON po.product_id = p.id
+                 JOIN batches bat ON bat.purchase_order_id = po.id
                  JOIN items i ON i.batch_id = bat.id
                  WHERE p.brand_id = ? AND p._is_active = TRUE
                  ORDER BY p.product_name'
@@ -389,10 +390,11 @@ class ProductController extends TenantAwareController
 
         foreach ($variants as &$variant) {
             $stmt = $this->db->prepare(
-                'SELECT b.*,
+                'SELECT b.*, po.po_number,
                         (SELECT COUNT(*) FROM items i WHERE i.batch_id = b.id) as item_count
                  FROM batches b
-                 WHERE b.product_id = ?'
+                 JOIN purchase_orders po ON b.purchase_order_id = po.id
+                 WHERE po.product_id = ?'
             );
             $stmt->execute([$productId]);
             $variant['batches'] = $stmt->fetchAll();

@@ -5,127 +5,78 @@ use App\Config\TenantContext;
 use App\Helpers\Response;
 use App\Helpers\Validator;
 
-class BatchMaterialController extends TenantAwareController {
-
+/**
+ * Batch Material controller with multi-tenant access control.
+ *
+ * NEW FLOW: Supplier has CRUD on batch_materials (they choose which
+ * fabric rolls to use). Brand has read-only access.
+ *
+ * Access:
+ * - Brand: Read batch materials for own POs
+ * - Supplier: CRUD on batch materials for own batches (via PO)
+ */
+class BatchMaterialController extends TenantAwareController
+{
     /**
-     * Verify batch material belongs to a batch owned by current brand (for writes)
+     * List materials in a batch
      */
-    private function verifyBatchMaterialOwnershipAsBrand(int|string $batchMaterialId): bool {
-        if (!TenantContext::isBrand()) {
-            return false;
-        }
+    public function index(array $params): void
+    {
+        $batchId = (int) $params['batchId'];
 
-        $brandId = TenantContext::getBrandId();
-        $stmt = $this->db->prepare(
-            'SELECT bm.id FROM batch_materials bm
-             JOIN batches b ON bm.batch_id = b.id
-             WHERE bm.id = ? AND b.brand_id = ?'
-        );
-        $stmt->execute([$batchMaterialId, $brandId]);
-        return (bool) $stmt->fetch();
-    }
-
-    /**
-     * Check if current user can read this batch
-     * Brands: own batches
-     * Suppliers: batches containing their materials
-     */
-    private function canReadBatch(int|string $batchId): bool {
-        if (TenantContext::isBrand()) {
-            return $this->verifyBatchOwnership($batchId);
-        }
-
-        if (TenantContext::isSupplier()) {
-            return $this->canAccessBatchAsSupplier($batchId);
-        }
-
-        return false;
-    }
-
-    /**
-     * Check if current user can read a batch material
-     */
-    private function canReadBatchMaterial(int|string $batchMaterialId): bool {
-        // Get batch_id and factory_material_id
-        $stmt = $this->db->prepare(
-            'SELECT batch_id, factory_material_id FROM batch_materials WHERE id = ?'
-        );
-        $stmt->execute([$batchMaterialId]);
-        $bm = $stmt->fetch();
-
-        if (!$bm) {
-            return false;
-        }
-
-        if (TenantContext::isBrand()) {
-            return $this->verifyBatchOwnership($bm['batch_id']);
-        }
-
-        if (TenantContext::isSupplier()) {
-            // Suppliers can only see batch materials for their own materials
-            return $this->verifyMaterialOwnership($bm['factory_material_id']);
-        }
-
-        return false;
-    }
-
-    public function index(array $params): void {
-        if (!$this->canReadBatch($params['batchId'])) {
+        if (!$this->canAccessBatch($batchId)) {
             Response::error('Batch not found', 404);
+            return;
         }
 
-        if (TenantContext::isBrand()) {
-            // Brands see all materials in their batch
-            $stmt = $this->db->prepare(
-                'SELECT bm.*, fm.material_name, fm.material_type, fm.description
-                 FROM batch_materials bm
-                 JOIN factory_materials fm ON bm.factory_material_id = fm.id
-                 WHERE bm.batch_id = ?
-                 ORDER BY bm.component'
-            );
-            $stmt->execute([$params['batchId']]);
-        } else {
-            // Suppliers only see their own materials in the batch
-            $supplierId = TenantContext::getSupplierId();
-            $stmt = $this->db->prepare(
-                'SELECT bm.*, fm.material_name, fm.material_type, fm.description
-                 FROM batch_materials bm
-                 JOIN factory_materials fm ON bm.factory_material_id = fm.id
-                 WHERE bm.batch_id = ? AND fm.supplier_id = ?
-                 ORDER BY bm.component'
-            );
-            $stmt->execute([$params['batchId'], $supplierId]);
-        }
-
+        $stmt = $this->db->prepare(
+            'SELECT bm.*, fm.material_name, fm.material_type, fm.description
+             FROM batch_materials bm
+             JOIN factory_materials fm ON bm.factory_material_id = fm.id
+             WHERE bm.batch_id = ?
+             ORDER BY bm.component'
+        );
+        $stmt->execute([$batchId]);
         Response::success($stmt->fetchAll());
     }
 
-    public function create(array $params): void {
-        // Write operations require brand authentication
-        $this->requireBrand();
+    /**
+     * Create batch material (supplier only)
+     */
+    public function create(array $params): void
+    {
+        $this->requireSupplier();
 
+        $batchId = (int) $params['batchId'];
         $data = Validator::getJsonBody();
-        Validator::required($data, ['factory_material_id']);
 
-        // Verify batch exists and belongs to this brand
-        if (!$this->verifyBatchOwnership($params['batchId'])) {
-            Response::error('Batch not found', 404);
+        if ($error = Validator::required($data, ['factory_material_id'])) {
+            Response::error($error);
+            return;
         }
 
-        // Verify material exists (materials are accessible via supplier relationship)
-        $stmt = $this->db->prepare('SELECT id FROM factory_materials WHERE id = ?');
-        $stmt->execute([$data['factory_material_id']]);
+        // Verify batch belongs to this supplier's PO
+        if (!$this->canAccessBatchAsCurrentSupplier($batchId)) {
+            Response::error('Batch not found', 404);
+            return;
+        }
+
+        // Verify material belongs to this supplier and is active
+        $stmt = $this->db->prepare(
+            'SELECT id FROM factory_materials WHERE id = ? AND supplier_id = ? AND _is_active = TRUE'
+        );
+        $stmt->execute([$data['factory_material_id'], TenantContext::getSupplierId()]);
         if (!$stmt->fetch()) {
-            Response::error('Factory material not found', 404);
+            Response::error('Factory material not found or inactive', 404);
+            return;
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO batch_materials (
-                batch_id, factory_material_id, component
-            ) VALUES (?, ?, ?)'
+            'INSERT INTO batch_materials (batch_id, factory_material_id, component)
+             VALUES (?, ?, ?)'
         );
         $stmt->execute([
-            $params['batchId'],
+            $batchId,
             $data['factory_material_id'],
             $data['component'] ?? null
         ]);
@@ -134,9 +85,16 @@ class BatchMaterialController extends TenantAwareController {
         $this->show(['id' => $id]);
     }
 
-    public function show(array $params): void {
-        if (!$this->canReadBatchMaterial($params['id'])) {
+    /**
+     * Show single batch material
+     */
+    public function show(array $params): void
+    {
+        $bmId = (int) $params['id'];
+
+        if (!$this->canReadBatchMaterial($bmId)) {
             Response::error('Batch material not found', 404);
+            return;
         }
 
         $stmt = $this->db->prepare(
@@ -145,81 +103,175 @@ class BatchMaterialController extends TenantAwareController {
              JOIN factory_materials fm ON bm.factory_material_id = fm.id
              WHERE bm.id = ?'
         );
-        $stmt->execute([$params['id']]);
-        Response::success($stmt->fetch());
+        $stmt->execute([$bmId]);
+        $result = $stmt->fetch();
+
+        if (!$result) {
+            Response::error('Batch material not found', 404);
+            return;
+        }
+
+        Response::success($result);
     }
 
-    public function update(array $params): void {
-        // Write operations require brand authentication
-        $this->requireBrand();
+    /**
+     * Update batch material (supplier only)
+     */
+    public function update(array $params): void
+    {
+        $this->requireSupplier();
+
+        $bmId = (int) $params['id'];
+
+        if (!$this->verifyBatchMaterialOwnershipAsSupplier($bmId)) {
+            Response::error('Batch material not found', 404);
+            return;
+        }
 
         $data = Validator::getJsonBody();
 
-        if (!$this->verifyBatchMaterialOwnershipAsBrand($params['id'])) {
-            Response::error('Batch material not found', 404);
+        // If changing material, verify it belongs to this supplier
+        if (isset($data['factory_material_id'])) {
+            $stmt = $this->db->prepare(
+                'SELECT id FROM factory_materials WHERE id = ? AND supplier_id = ? AND _is_active = TRUE'
+            );
+            $stmt->execute([$data['factory_material_id'], TenantContext::getSupplierId()]);
+            if (!$stmt->fetch()) {
+                Response::error('Factory material not found or inactive', 404);
+                return;
+            }
         }
 
         $stmt = $this->db->prepare(
             'UPDATE batch_materials SET
+                factory_material_id = COALESCE(?, factory_material_id),
                 component = COALESCE(?, component)
-            WHERE id = ?'
+             WHERE id = ?'
         );
         $stmt->execute([
+            $data['factory_material_id'] ?? null,
             $data['component'] ?? null,
-            $params['id']
+            $bmId
         ]);
 
-        $this->show($params);
+        $this->show(['id' => $bmId]);
     }
 
-    public function delete(array $params): void {
-        // Write operations require brand authentication
-        $this->requireBrand();
+    /**
+     * Delete batch material (supplier only)
+     */
+    public function delete(array $params): void
+    {
+        $this->requireSupplier();
 
-        if (!$this->verifyBatchMaterialOwnershipAsBrand($params['id'])) {
+        $bmId = (int) $params['id'];
+
+        if (!$this->verifyBatchMaterialOwnershipAsSupplier($bmId)) {
             Response::error('Batch material not found', 404);
+            return;
         }
 
         $stmt = $this->db->prepare('DELETE FROM batch_materials WHERE id = ?');
-        $stmt->execute([$params['id']]);
+        $stmt->execute([$bmId]);
 
-        Response::success(['deleted' => true]);
+        Response::success(['deleted' => $bmId]);
     }
 
-    // Get materials by factory material ID (reverse lookup)
-    // Brands: see batch materials for their batches
-    // Suppliers: see batch materials for their own materials
-    public function indexByMaterial(array $params): void {
+    /**
+     * Reverse lookup: list batches using a specific material
+     * Brand: sees batch materials for own batches
+     * Supplier: sees batch materials for own materials
+     */
+    public function indexByMaterial(array $params): void
+    {
+        $materialId = (int) $params['materialId'];
+
         if (TenantContext::isBrand()) {
-            $brandId = TenantContext::getBrandId();
             $stmt = $this->db->prepare(
-                'SELECT bm.*, b.batch_number, p.product_name
+                'SELECT bm.*, b.batch_number, po.po_number, p.product_name
                  FROM batch_materials bm
                  JOIN batches b ON bm.batch_id = b.id
-                 JOIN products p ON b.product_id = p.id
-                 WHERE bm.factory_material_id = ? AND b.brand_id = ?
+                 JOIN purchase_orders po ON b.purchase_order_id = po.id
+                 JOIN products p ON po.product_id = p.id
+                 WHERE bm.factory_material_id = ? AND po.brand_id = ?
                  ORDER BY b.created_at DESC'
             );
-            $stmt->execute([$params['materialId'], $brandId]);
+            $stmt->execute([$materialId, TenantContext::getBrandId()]);
         } elseif (TenantContext::isSupplier()) {
-            // Suppliers can only see usages of their own materials
-            if (!$this->verifyMaterialOwnership($params['materialId'])) {
+            if (!$this->verifyMaterialOwnership($materialId)) {
                 Response::error('Factory material not found', 404);
+                return;
             }
-
             $stmt = $this->db->prepare(
-                'SELECT bm.*, b.batch_number, p.product_name
+                'SELECT bm.*, b.batch_number, po.po_number, p.product_name, br.brand_name
                  FROM batch_materials bm
                  JOIN batches b ON bm.batch_id = b.id
-                 JOIN products p ON b.product_id = p.id
+                 JOIN purchase_orders po ON b.purchase_order_id = po.id
+                 JOIN products p ON po.product_id = p.id
+                 JOIN brands br ON po.brand_id = br.id
                  WHERE bm.factory_material_id = ?
                  ORDER BY b.created_at DESC'
             );
-            $stmt->execute([$params['materialId']]);
+            $stmt->execute([$materialId]);
         } else {
             Response::error('Unauthorized', 403);
+            return;
         }
 
         Response::success($stmt->fetchAll());
+    }
+
+    // ========== Access helpers ==========
+
+    private function canAccessBatch(int $batchId): bool
+    {
+        if (TenantContext::isBrand()) {
+            $stmt = $this->db->prepare(
+                'SELECT b.id FROM batches b
+                 JOIN purchase_orders po ON b.purchase_order_id = po.id
+                 WHERE b.id = ? AND po.brand_id = ?'
+            );
+            $stmt->execute([$batchId, TenantContext::getBrandId()]);
+            return (bool) $stmt->fetch();
+        }
+        if (TenantContext::isSupplier()) {
+            return $this->canAccessBatchAsCurrentSupplier($batchId);
+        }
+        return false;
+    }
+
+    private function canAccessBatchAsCurrentSupplier(int $batchId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT b.id FROM batches b
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE b.id = ? AND po.supplier_id = ?'
+        );
+        $stmt->execute([$batchId, TenantContext::getSupplierId()]);
+        return (bool) $stmt->fetch();
+    }
+
+    private function canReadBatchMaterial(int $bmId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT bm.batch_id FROM batch_materials bm WHERE bm.id = ?'
+        );
+        $stmt->execute([$bmId]);
+        $bm = $stmt->fetch();
+        if (!$bm) return false;
+
+        return $this->canAccessBatch((int) $bm['batch_id']);
+    }
+
+    private function verifyBatchMaterialOwnershipAsSupplier(int $bmId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT bm.id FROM batch_materials bm
+             JOIN batches b ON bm.batch_id = b.id
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE bm.id = ? AND po.supplier_id = ?'
+        );
+        $stmt->execute([$bmId, TenantContext::getSupplierId()]);
+        return (bool) $stmt->fetch();
     }
 }

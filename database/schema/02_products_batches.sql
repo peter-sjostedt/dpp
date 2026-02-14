@@ -1,5 +1,5 @@
 -- ============================================
--- DPP Products, Variants, Batches, Items
+-- DPP Products, Variants, Purchase Orders, Batches, Items
 -- Factory Materials with compositions
 -- ============================================
 
@@ -8,6 +8,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS items;
 DROP TABLE IF EXISTS batch_materials;
 DROP TABLE IF EXISTS batches;
+DROP TABLE IF EXISTS purchase_orders;
 DROP TABLE IF EXISTS product_variants;
 DROP TABLE IF EXISTS product_components;
 DROP TABLE IF EXISTS products;
@@ -203,20 +204,19 @@ CREATE TABLE product_variants (
 );
 
 -- ============================================
--- BATCHES (Production runs)
+-- PURCHASE ORDERS (Brand beställer från Supplier)
 -- ============================================
 
-CREATE TABLE batches (
+CREATE TABLE purchase_orders (
     id INT AUTO_INCREMENT PRIMARY KEY,
     brand_id INT NOT NULL,
     supplier_id INT NOT NULL,
     product_id INT NOT NULL,
 
-    batch_number VARCHAR(100) NOT NULL,
-    po_number VARCHAR(100) COMMENT '305,00',
-    production_date DATE,
-    quantity INT,
-    _status VARCHAR(50) DEFAULT 'planned' COMMENT 'planned/in_production/completed',
+    po_number VARCHAR(100) NOT NULL COMMENT '305,00 - Inköpsordernummer',
+    quantity INT COMMENT 'Beställd kvantitet',
+    requested_delivery_date DATE,
+    _status VARCHAR(50) DEFAULT 'draft' COMMENT 'draft/sent/accepted/fulfilled/cancelled',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -224,12 +224,46 @@ CREATE TABLE batches (
     FOREIGN KEY (brand_id) REFERENCES brands(id),
     FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
     FOREIGN KEY (product_id) REFERENCES products(id),
-    INDEX idx_batches_brand (brand_id),
-    INDEX idx_batches_product (product_id)
+    INDEX idx_po_brand (brand_id),
+    INDEX idx_po_supplier (supplier_id),
+    INDEX idx_po_product (product_id)
+);
+
+-- ============================================
+-- BATCHES (Produktionsomgångar, skapas av Supplier)
+-- En batch = en produktionsomgång med specifika material-inputs.
+-- Flera batchar kan tillhöra samma PO om fabriken
+-- byter tygrulle/leverans under produktion.
+-- ============================================
+
+CREATE TABLE batches (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    purchase_order_id INT NOT NULL,
+
+    batch_number VARCHAR(100) NOT NULL,
+    production_date DATE,
+    quantity INT,
+    _status VARCHAR(50) DEFAULT 'in_production' COMMENT 'in_production/completed',
+
+    -- Facility override (NULL = använd supplier defaults från PO → supplier)
+    facility_name VARCHAR(255) COMMENT 'Override: 200,00 - Supplier Name',
+    facility_location TEXT COMMENT 'Override: 201,00 - Supplier Location',
+    facility_registry VARCHAR(50) COMMENT 'Override: 202,00 - Facility Registry',
+    facility_identifier VARCHAR(100) COMMENT 'Override: 202,10 - Facility Identifier',
+    country_of_origin_confection VARCHAR(2) COMMENT 'Override: 204,00',
+    country_of_origin_dyeing VARCHAR(2) COMMENT 'Override: 205,00',
+    country_of_origin_weaving VARCHAR(2) COMMENT 'Override: 206,00',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
+    INDEX idx_batches_po (purchase_order_id)
 );
 
 -- ============================================
 -- BATCH MATERIALS (Links batches to factory materials)
+-- Skapas av Supplier - vilka tygleveranser som faktiskt användes
 -- ============================================
 
 CREATE TABLE batch_materials (
@@ -247,6 +281,7 @@ CREATE TABLE batch_materials (
 
 -- ============================================
 -- ITEMS (Individual serialized products)
+-- Skapas av Supplier vid produktion (RFID/SGTIN)
 -- ============================================
 
 CREATE TABLE items (

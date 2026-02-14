@@ -7,22 +7,18 @@ cd /d "%~dp0"
 
 echo Running schema files...
 
-mysql -u root < schema\01_foundation.sql
+mysql -u root petersjo_dpp < schema\01_foundation.sql
 if %errorlevel% neq 0 goto :error
 
-mysql -u root < schema\02_products_batches.sql
+mysql -u root petersjo_dpp < schema\02_products_batches.sql
 if %errorlevel% neq 0 goto :error
 
-mysql -u root < schema\03_care_compliance_export.sql
+mysql -u root petersjo_dpp < schema\03_care_compliance.sql
 if %errorlevel% neq 0 goto :error
 
-mysql -u root < schema\04_testdata.sql
-if %errorlevel% neq 0 goto :error
+echo Loading test data...
 
-mysql -u root < schema\05_testdata_continued.sql
-if %errorlevel% neq 0 goto :error
-
-mysql -u root < schema\06_testdata_items.sql
+mysql -u root petersjo_dpp < testdata\healthcare_textiles.sql
 if %errorlevel% neq 0 goto :error
 
 echo.

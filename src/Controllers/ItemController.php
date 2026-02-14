@@ -7,52 +7,62 @@ use App\Helpers\Validator;
 
 /**
  * Item controller with multi-tenant access control.
- * - As Brand: Full CRUD on own items (filtered via batch.brand_id)
- * - As Supplier: No access to items
+ *
+ * NEW FLOW: Items are created by SUPPLIERS during production.
+ * They register RFID tags (TID/SGTIN) as they produce garments.
+ *
+ * Access:
+ * - Brand: Read items for own POs
+ * - Supplier: Create + Read + Delete items for own batches
  */
 class ItemController extends TenantAwareController
 {
+    /**
+     * List items in a batch
+     */
     public function index(array $params): void
     {
-        $this->requireBrand();
-
-        $brandId = TenantContext::getBrandId();
         $batchId = (int) $params['batchId'];
 
-        // Verify batch belongs to brand
-        if (!$this->verifyBatchOwnership($batchId)) {
+        if (!$this->canAccessBatch($batchId)) {
             Response::error('Batch not found', 404);
             return;
         }
 
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number
+            'SELECT i.*, pv.gtin as variant_gtin, pv.size, pv.color_brand
              FROM items i
-             JOIN batches b ON i.batch_id = b.id
-             WHERE i.batch_id = ? AND b.brand_id = ?
+             LEFT JOIN product_variants pv ON i.product_variant_id = pv.id
+             WHERE i.batch_id = ?
              ORDER BY i.created_at DESC'
         );
-        $stmt->execute([$batchId, $brandId]);
+        $stmt->execute([$batchId]);
         Response::success($stmt->fetchAll());
     }
 
+    /**
+     * Show single item with full context
+     */
     public function show(array $params): void
     {
-        $this->requireBrand();
-
         $itemId = (int) $params['id'];
 
-        if (!$this->verifyItemOwnership($itemId)) {
+        if (!$this->canAccessItem($itemId)) {
             Response::error('Item not found', 404);
             return;
         }
 
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.gtin as variant_gtin, pv.size, pv.color_brand as color_name, p.product_name,
-                    p.data_carrier_type, p.data_carrier_material, p.data_carrier_location
+            'SELECT i.*, b.batch_number, po.po_number,
+                    pv.gtin as variant_gtin, pv.size, pv.color_brand,
+                    p.product_name, p.data_carrier_type, p.data_carrier_material, p.data_carrier_location,
+                    s.supplier_name, br.brand_name
              FROM items i
-             LEFT JOIN batches b ON i.batch_id = b.id
-             LEFT JOIN products p ON b.product_id = p.id
+             JOIN batches b ON i.batch_id = b.id
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             JOIN products p ON po.product_id = p.id
+             JOIN suppliers s ON po.supplier_id = s.id
+             JOIN brands br ON po.brand_id = br.id
              LEFT JOIN product_variants pv ON i.product_variant_id = pv.id
              WHERE i.id = ?'
         );
@@ -67,24 +77,29 @@ class ItemController extends TenantAwareController
         Response::success($item);
     }
 
+    /**
+     * Find item by SGTIN
+     */
     public function showBySgtin(array $params): void
     {
-        $this->requireBrand();
+        $sgtin = $params['sgtin'];
 
-        $brandId = TenantContext::getBrandId();
-
+        // Find the item first, then check access
         $stmt = $this->db->prepare(
-            'SELECT i.*, b.batch_number, pv.gtin as variant_gtin, pv.size, pv.color_brand as color_name, p.product_name,
-                    p.data_carrier_type, p.data_carrier_material, p.data_carrier_location,
-                    br.brand_name
+            'SELECT i.*, b.batch_number, po.po_number, po.brand_id, po.supplier_id,
+                    pv.gtin as variant_gtin, pv.size, pv.color_brand,
+                    p.product_name, p.data_carrier_type, p.data_carrier_material, p.data_carrier_location,
+                    s.supplier_name, br.brand_name
              FROM items i
              JOIN batches b ON i.batch_id = b.id
-             JOIN products p ON b.product_id = p.id
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             JOIN products p ON po.product_id = p.id
+             JOIN suppliers s ON po.supplier_id = s.id
+             JOIN brands br ON po.brand_id = br.id
              LEFT JOIN product_variants pv ON i.product_variant_id = pv.id
-             JOIN brands br ON p.brand_id = br.id
-             WHERE i.sgtin = ? AND b.brand_id = ?'
+             WHERE i.sgtin = ?'
         );
-        $stmt->execute([$params['sgtin'], $brandId]);
+        $stmt->execute([$sgtin]);
         $item = $stmt->fetch();
 
         if (!$item) {
@@ -92,33 +107,38 @@ class ItemController extends TenantAwareController
             return;
         }
 
+        // Check access
+        if (TenantContext::isBrand() && (int) $item['brand_id'] !== TenantContext::getBrandId()) {
+            Response::error('Item not found', 404);
+            return;
+        }
+        if (TenantContext::isSupplier() && (int) $item['supplier_id'] !== TenantContext::getSupplierId()) {
+            Response::error('Item not found', 404);
+            return;
+        }
+
         Response::success($item);
     }
 
+    /**
+     * Create single item (supplier only)
+     */
     public function create(array $params): void
     {
-        $this->requireBrand();
+        $this->requireSupplier();
 
-        $brandId = TenantContext::getBrandId();
         $batchId = (int) $params['batchId'];
         $data = Validator::getJsonBody();
 
-        // Verify batch exists and belongs to brand, get product info for SGTIN base
-        $stmt = $this->db->prepare(
-            'SELECT b.id, COALESCE(p.gtin, p.id) as product_code
-             FROM batches b
-             JOIN products p ON b.product_id = p.id
-             WHERE b.id = ? AND b.brand_id = ?'
-        );
-        $stmt->execute([$batchId, $brandId]);
-        $batch = $stmt->fetch();
-        if (!$batch) {
+        if (!$this->canAccessBatchAsCurrentSupplier($batchId)) {
             Response::error('Batch not found', 404);
             return;
         }
 
-        // Generate sgtin if not provided
-        $sgtin = $data['sgtin'] ?? $this->generateSgtin($batch['product_code']);
+        // Get product GTIN for SGTIN generation
+        $productCode = $this->getProductCodeForBatch($batchId);
+
+        $sgtin = $data['sgtin'] ?? $this->generateSgtin($productCode);
 
         // Check for duplicate sgtin
         $stmt = $this->db->prepare('SELECT id FROM items WHERE sgtin = ?');
@@ -129,23 +149,30 @@ class ItemController extends TenantAwareController
         }
 
         $stmt = $this->db->prepare(
-            'INSERT INTO items (batch_id, tid, sgtin) VALUES (?, ?, ?)'
+            'INSERT INTO items (batch_id, product_variant_id, unique_product_id, tid, sgtin, serial_number, _status)
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([
             $batchId,
+            $data['product_variant_id'] ?? null,
+            $data['unique_product_id'] ?? null,
             $data['tid'] ?? null,
-            $sgtin
+            $sgtin,
+            $data['serial_number'] ?? null,
+            $data['status'] ?? 'produced'
         ]);
 
-        $id = $this->db->lastInsertId();
+        $id = (int) $this->db->lastInsertId();
         $this->show(['id' => $id]);
     }
 
+    /**
+     * Bulk create items (supplier only)
+     */
     public function createBulk(array $params): void
     {
-        $this->requireBrand();
+        $this->requireSupplier();
 
-        $brandId = TenantContext::getBrandId();
         $batchId = (int) $params['batchId'];
         $data = Validator::getJsonBody();
 
@@ -154,43 +181,45 @@ class ItemController extends TenantAwareController
             return;
         }
 
-        $quantity = (int)$data['quantity'];
+        $quantity = (int) $data['quantity'];
         if ($quantity < 1 || $quantity > 1000) {
             Response::error('Quantity must be between 1 and 1000', 400);
             return;
         }
 
-        // Verify batch exists and belongs to brand
-        $stmt = $this->db->prepare(
-            'SELECT b.id, COALESCE(p.gtin, p.id) as product_code
-             FROM batches b
-             JOIN products p ON b.product_id = p.id
-             WHERE b.id = ? AND b.brand_id = ?'
-        );
-        $stmt->execute([$batchId, $brandId]);
-        $batch = $stmt->fetch();
-        if (!$batch) {
+        if (!$this->canAccessBatchAsCurrentSupplier($batchId)) {
             Response::error('Batch not found', 404);
             return;
         }
+
+        $productCode = $this->getProductCodeForBatch($batchId);
+        $variantId = $data['product_variant_id'] ?? null;
+        $serialPrefix = $data['serial_prefix'] ?? 'SN-';
 
         $createdIds = [];
         $this->db->beginTransaction();
 
         try {
             $stmt = $this->db->prepare(
-                'INSERT INTO items (batch_id, sgtin) VALUES (?, ?)'
+                'INSERT INTO items (batch_id, product_variant_id, sgtin, serial_number, _status)
+                 VALUES (?, ?, ?, ?, ?)'
             );
 
             for ($i = 0; $i < $quantity; $i++) {
-                $sgtin = $this->generateSgtin($batch['product_code']);
+                $sgtin = $this->generateSgtin($productCode);
+                $serial = $serialPrefix . str_pad((string)($i + 1), 5, '0', STR_PAD_LEFT);
+
                 $stmt->execute([
                     $batchId,
-                    $sgtin
+                    $variantId,
+                    $sgtin,
+                    $serial,
+                    'produced'
                 ]);
                 $createdIds[] = [
-                    'id' => (int)$this->db->lastInsertId(),
-                    'sgtin' => $sgtin
+                    'id' => (int) $this->db->lastInsertId(),
+                    'sgtin' => $sgtin,
+                    'serial_number' => $serial
                 ];
             }
 
@@ -205,13 +234,16 @@ class ItemController extends TenantAwareController
         }
     }
 
+    /**
+     * Delete item (supplier only)
+     */
     public function delete(array $params): void
     {
-        $this->requireBrand();
+        $this->requireSupplier();
 
         $itemId = (int) $params['id'];
 
-        if (!$this->verifyItemOwnership($itemId)) {
+        if (!$this->canAccessItemAsCurrentSupplier($itemId)) {
             Response::error('Item not found', 404);
             return;
         }
@@ -222,10 +254,74 @@ class ItemController extends TenantAwareController
         Response::success(['deleted' => $itemId]);
     }
 
+    // ========== Access helpers ==========
+
+    private function canAccessBatch(int $batchId): bool
+    {
+        if (TenantContext::isBrand()) {
+            $stmt = $this->db->prepare(
+                'SELECT b.id FROM batches b
+                 JOIN purchase_orders po ON b.purchase_order_id = po.id
+                 WHERE b.id = ? AND po.brand_id = ?'
+            );
+            $stmt->execute([$batchId, TenantContext::getBrandId()]);
+            return (bool) $stmt->fetch();
+        }
+        return $this->canAccessBatchAsCurrentSupplier($batchId);
+    }
+
+    private function canAccessBatchAsCurrentSupplier(int $batchId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT b.id FROM batches b
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE b.id = ? AND po.supplier_id = ?'
+        );
+        $stmt->execute([$batchId, TenantContext::getSupplierId()]);
+        return (bool) $stmt->fetch();
+    }
+
+    private function canAccessItem(int $itemId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT i.batch_id FROM items i WHERE i.id = ?'
+        );
+        $stmt->execute([$itemId]);
+        $item = $stmt->fetch();
+        if (!$item) return false;
+
+        return $this->canAccessBatch((int) $item['batch_id']);
+    }
+
+    private function canAccessItemAsCurrentSupplier(int $itemId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT i.id FROM items i
+             JOIN batches b ON i.batch_id = b.id
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE i.id = ? AND po.supplier_id = ?'
+        );
+        $stmt->execute([$itemId, TenantContext::getSupplierId()]);
+        return (bool) $stmt->fetch();
+    }
+
+    private function getProductCodeForBatch(int $batchId): string
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COALESCE(p.gtin, p.id) as product_code
+             FROM batches b
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             JOIN products p ON po.product_id = p.id
+             WHERE b.id = ?'
+        );
+        $stmt->execute([$batchId]);
+        $result = $stmt->fetch();
+        return $result ? $result['product_code'] : '0';
+    }
+
     private function generateSgtin(string $gtin): string
     {
-        // Format: GTIN.NNNNNN (6-digit serial)
-        $serial = str_pad((string)random_int(1, 999999), 6, '0', STR_PAD_LEFT);
+        $serial = str_pad((string) random_int(1, 999999), 6, '0', STR_PAD_LEFT);
         return $gtin . '.' . $serial;
     }
 }
