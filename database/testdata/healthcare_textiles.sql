@@ -235,6 +235,45 @@ INSERT INTO batch_materials (batch_id, factory_material_id, component) VALUES
 (20, 10, 'Body fabric');   -- HealthTex Basic Tunic: Baltic Polyester
 
 -- ============================================
+-- PURCHASE ORDER LINES (antal per variant)
+-- ============================================
+
+-- PO 1: VårdTex Scrubs Tunika (500 st totalt)
+INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES
+(1, 1, 80),    -- Ceil Blue S
+(1, 2, 140),   -- Ceil Blue M
+(1, 3, 120),   -- Ceil Blue L
+(1, 4, 60),    -- Ceil Blue XL
+(1, 5, 60),    -- Navy M
+(1, 6, 40);    -- Navy L
+
+-- PO 2: VårdTex Scrubs Byxa (500 st totalt)
+INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES
+(2, 10, 150),  -- Ceil Blue S
+(2, 11, 200),  -- Ceil Blue M
+(2, 12, 150);  -- Ceil Blue L
+
+-- PO 3: VårdTex Labbrock (200 st totalt)
+INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES
+(3, 20, 100),  -- White M
+(3, 21, 100);  -- White L
+
+-- PO 4: VårdTex Patientskjorta (300 st totalt)
+INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES
+(4, 30, 200),  -- White M
+(4, 31, 100);  -- Light Blue M
+
+-- PO 5: MediWear Scrub Top (400 st totalt)
+INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES
+(5, 50, 200),  -- Teal M
+(5, 51, 200);  -- Teal L
+
+-- PO 6: HealthTex Basic Tunic (1000 st totalt)
+INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES
+(6, 60, 500),  -- White M
+(6, 61, 500);  -- White L
+
+-- ============================================
 -- ITEMS (Supplier registrerar vid produktion med RFID)
 -- ============================================
 
@@ -316,5 +355,6 @@ SELECT COUNT(*) AS factory_materials FROM factory_materials;
 SELECT COUNT(*) AS products FROM products;
 SELECT COUNT(*) AS product_variants FROM product_variants;
 SELECT COUNT(*) AS purchase_orders FROM purchase_orders;
+SELECT COUNT(*) AS purchase_order_lines FROM purchase_order_lines;
 SELECT COUNT(*) AS batches FROM batches;
 SELECT COUNT(*) AS items FROM items;

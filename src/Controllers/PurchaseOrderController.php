@@ -152,6 +152,18 @@ class PurchaseOrderController extends TenantAwareController
         $stmt->execute([$poId]);
         $po['batches'] = $stmt->fetchAll();
 
+        // Include order lines with variant details
+        $stmt = $this->db->prepare(
+            'SELECT pol.*, pv.item_number, pv.size, pv.size_country_code,
+                    pv.color_brand, pv.color_general, pv.gtin AS variant_gtin
+             FROM purchase_order_lines pol
+             JOIN product_variants pv ON pol.product_variant_id = pv.id
+             WHERE pol.purchase_order_id = ?
+             ORDER BY pv.color_brand, pv.size'
+        );
+        $stmt->execute([$poId]);
+        $po['lines'] = $stmt->fetchAll();
+
         Response::success($po);
     }
 

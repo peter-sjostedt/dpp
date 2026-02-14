@@ -3,8 +3,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../src/Config/Auth.php';
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../src/Config/Auth.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 use App\Config\Auth;
 use App\Config\Database;
@@ -52,16 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm'])) {
 
             // Schema files only
             $sqlFiles = [
-                __DIR__ . '/../database/schema/01_foundation.sql',
-                __DIR__ . '/../database/schema/02_products_batches.sql',
-                __DIR__ . '/../database/schema/03_care_compliance.sql',
+                __DIR__ . '/../../database/schema/01_foundation.sql',
+                __DIR__ . '/../../database/schema/02_products_batches.sql',
+                __DIR__ . '/../../database/schema/03_care_compliance.sql',
             ];
             $successMessage = 'Schemat har återställts! Alla tabeller är tomma.';
 
         } elseif ($action === 'load_testdata' && $_POST['confirm'] === 'LOAD') {
             // Testdata only
             $sqlFiles = [
-                __DIR__ . '/../database/testdata/healthcare_textiles.sql',
+                __DIR__ . '/../../database/testdata/healthcare_textiles.sql',
             ];
             $successMessage = 'Testdata har laddats!';
 
@@ -83,10 +83,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm'])) {
 
             // Both schema and testdata
             $sqlFiles = [
-                __DIR__ . '/../database/schema/01_foundation.sql',
-                __DIR__ . '/../database/schema/02_products_batches.sql',
-                __DIR__ . '/../database/schema/03_care_compliance.sql',
-                __DIR__ . '/../database/testdata/healthcare_textiles.sql',
+                __DIR__ . '/../../database/schema/01_foundation.sql',
+                __DIR__ . '/../../database/schema/02_products_batches.sql',
+                __DIR__ . '/../../database/schema/03_care_compliance.sql',
+                __DIR__ . '/../../database/testdata/healthcare_textiles.sql',
             ];
             $successMessage = 'Databasen har återställts med all testdata!';
 

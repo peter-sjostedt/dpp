@@ -1,4 +1,5 @@
 <?php
+if (function_exists('opcache_reset')) { opcache_reset(); }
 /**
  * DPP API Test Suite
  * Testar ALLA endpoints och rapporterar fel
@@ -10,7 +11,7 @@
  * - ItemController (supplier skapar)
  */
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 // Konfig
 $baseUrl = 'http://' . $_SERVER['HTTP_HOST'] . '/api';
@@ -38,8 +39,15 @@ $compositionId = $db->query("SELECT id FROM factory_material_compositions LIMIT 
 $materialCertId = $db->query("SELECT id FROM factory_material_certifications LIMIT 1")->fetchColumn() ?: 1;
 $supplyChainId = $db->query("SELECT id FROM factory_material_supply_chain LIMIT 1")->fetchColumn() ?: 1;
 $batchMaterialId = $db->query("SELECT id FROM batch_materials LIMIT 1")->fetchColumn() ?: 1;
+$poLineId = $db->query("SELECT id FROM purchase_order_lines LIMIT 1")->fetchColumn() ?: 1;
 $brandSupplierId = $db->query("SELECT id FROM brand_suppliers WHERE _is_active = 1 LIMIT 1")->fetchColumn() ?: 1;
 $relationId = $brandSupplierId;
+
+// Skapa en draft-PO för CRUD-tester på PO Lines
+$db->exec("INSERT INTO purchase_orders (brand_id, supplier_id, product_id, po_number, quantity, _status) VALUES (1, 1, 1, 'PO-TEST-CRUD', 100, 'draft')");
+$draftPoId = (int) $db->lastInsertId();
+$db->exec("INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES ({$draftPoId}, 1, 50)");
+$testPoLineId = (int) $db->lastInsertId();
 
 // Resultat
 $results = [];
@@ -234,6 +242,35 @@ $tests = [
     ['Supplier: GET POs by supplier', 'GET', "/suppliers/{$supplierId}/purchase-orders", null, $supplierKey, 'tenant', [200, 404]],
 
     // ========================================
+    // TENANT API - Purchase Order Lines (read)
+    // ========================================
+    // Brand
+    ['Brand: GET PO lines', 'GET', "/purchase-orders/{$poId}/lines", null, $brandKey, 'tenant', [200]],
+    ['Brand: GET PO line/{id}', 'GET', "/purchase-order-lines/{$poLineId}", null, $brandKey, 'tenant', [200]],
+    // Supplier (read-only)
+    ['Supplier: GET PO lines', 'GET', "/purchase-orders/{$poId}/lines", null, $supplierKey, 'tenant', [200]],
+    ['Supplier: GET PO line/{id}', 'GET', "/purchase-order-lines/{$poLineId}", null, $supplierKey, 'tenant', [200]],
+
+    // ========================================
+    // TENANT API - Purchase Order Lines (CRUD på draft-PO)
+    // ========================================
+    // Brand: skapa ny line
+    ['Brand: POST create PO line', 'POST', "/purchase-orders/{$draftPoId}/lines", ['product_variant_id' => 2, 'quantity' => 25], $brandKey, 'tenant', [200]],
+    // Brand: uppdatera befintlig line
+    ['Brand: PUT update PO line', 'PUT', "/purchase-order-lines/{$testPoLineId}", ['quantity' => 75], $brandKey, 'tenant', [200]],
+    // Brand: läs uppdaterad line
+    ['Brand: GET updated PO line', 'GET', "/purchase-order-lines/{$testPoLineId}", null, $brandKey, 'tenant', [200]],
+    // Supplier: läs (read-only)
+    ['Supplier: GET draft PO lines', 'GET', "/purchase-orders/{$draftPoId}/lines", null, $supplierKey, 'tenant', [200]],
+    ['Supplier: GET draft PO line/{id}', 'GET', "/purchase-order-lines/{$testPoLineId}", null, $supplierKey, 'tenant', [200]],
+    // Supplier: nekad skrivning
+    ['Supplier: Cannot create PO line', 'POST', "/purchase-orders/{$draftPoId}/lines", ['product_variant_id' => 3, 'quantity' => 10], $supplierKey, 'tenant', [403]],
+    ['Supplier: Cannot update PO line', 'PUT', "/purchase-order-lines/{$testPoLineId}", ['quantity' => 999], $supplierKey, 'tenant', [403]],
+    ['Supplier: Cannot delete PO line', 'DELETE', "/purchase-order-lines/{$testPoLineId}", null, $supplierKey, 'tenant', [403]],
+    // Brand: ta bort line (sist, så den finns kvar för supplier-testerna ovan)
+    ['Brand: DELETE PO line', 'DELETE', "/purchase-order-lines/{$testPoLineId}", null, $brandKey, 'tenant', [200]],
+
+    // ========================================
     // TENANT API - Batches (ändrad: supplier skapar)
     // ========================================
     // Brand (read-only)
@@ -376,7 +413,7 @@ if ($html):
         <strong>Test Configuration:</strong><br>
         Brand API Key: <code><?= $brandKey ? substr($brandKey, 0, 20) . '...' : 'NOT FOUND' ?></code> (ID: <?= $brandId ?>)<br>
         Supplier API Key: <code><?= $supplierKey ? substr($supplierKey, 0, 20) . '...' : 'NOT FOUND' ?></code> (ID: <?= $supplierId ?>)<br>
-        Test IDs: Product=<?= $productId ?>, Variant=<?= $variantId ?>, PO=<?= $poId ?>, Batch=<?= $batchId ?>, Item=<?= $itemId ?>, Material=<?= $materialId ?>
+        Test IDs: Product=<?= $productId ?>, Variant=<?= $variantId ?>, PO=<?= $poId ?>, POLine=<?= $poLineId ?>, Batch=<?= $batchId ?>, Item=<?= $itemId ?>, Material=<?= $materialId ?>
     </div>
 
     <div class="summary <?= $totalFailed === 0 ? 'pass' : 'fail' ?>">

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/Config/Auth.php';
+require_once __DIR__ . '/../../src/Config/Auth.php';
 use App\Config\Auth;
 Auth::requireLogin();
 ?>
@@ -7,7 +7,7 @@ Auth::requireLogin();
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
-    <title>Suppliers - DPP Test</title>
+    <title>Brands - DPP Test</title>
     <style>
         body { font-family: Arial; margin: 0; padding: 20px; background: #f5f5f5; }
         .header { background: #1a237e; color: white; padding: 20px; margin: -20px -20px 20px; }
@@ -40,37 +40,37 @@ Auth::requireLogin();
     <div class="header" id="header">
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
-        <h1>Suppliers</h1>
-        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">Registrerade leverantörer/fabriker</p>
+        <h1>Brands</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">Registrerade varumärken</p>
         <div id="tenant_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
     <div class="container">
         <div class="form-section">
             <div id="readonly-notice" class="readonly-notice" style="display: none;">
-                Du är inloggad som <strong>Brand</strong> - endast läsåtkomst till relaterade suppliers.
+                Du är inloggad som <strong>Supplier</strong> - endast läsåtkomst till relaterade brands.
             </div>
 
-            <select id="supplier_id_select" onchange="onSupplierSelect()" style="display: none;"></select>
+            <select id="brand_id_select" onchange="onBrandSelect()" style="display: none;"></select>
 
             <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
-                <label>Leverantörsnamn <span>Fabrikens officiella namn</span></label>
-                <input type="text" id="supplier_name">
+                <label>Varumärke <span>Det registrerade varumärkesnamnet</span></label>
+                <input type="text" id="brand_name">
 
-                <label>Plats/Land <span>Adress för produktionsanläggningen</span></label>
-                <input type="text" id="supplier_location">
+                <label>Sub-brand <span>Undervarumärke eller produktlinje (valfritt)</span></label>
+                <input type="text" id="sub_brand">
 
-                <label>Facility Registry <span>GLN, OSH eller OTHER</span></label>
-                <input type="text" id="facility_registry">
+                <label>Parent Company <span>Moderbolag som äger varumärket (valfritt)</span></label>
+                <input type="text" id="parent_company">
 
-                <label>Facility Identifier <span>Unik identifierare i valt register</span></label>
-                <input type="text" id="facility_identifier">
+                <label>Trader <span>Juridiskt namn på den ekonomiska aktören</span></label>
+                <input type="text" id="trader">
 
-                <label>Operator Registry <span>GLN, EORI, VAT eller OTHER</span></label>
-                <input type="text" id="operator_registry">
+                <label>Trader Location <span>Fullständig adress till den ekonomiska aktören</span></label>
+                <input type="text" id="trader_location">
 
-                <label>Operator Identifier <span>Unik identifierare i valt register</span></label>
-                <input type="text" id="operator_identifier">
+                <label>Logo URL <span>URL till varumärkets logotyp</span></label>
+                <input type="text" id="logo_url">
 
                 <label>LEI <span>ISO 17442, exakt 20 tecken (A-Z, 0-9)</span></label>
                 <input type="text" id="lei" maxlength="20" style="text-transform: uppercase;">
@@ -86,18 +86,19 @@ Auth::requireLogin();
             <div class="section" id="sec-info" style="margin-top: 20px;">
                 <div class="section-header" onclick="toggle('sec-info')"><h2>API Information</h2></div>
                 <div class="section-content">
-                    <p><strong>Som Supplier:</strong></p>
-                    <ul>
-                        <li>GET /api/suppliers - Din egen supplier</li>
-                        <li>GET /api/suppliers/{id} - Hämta din supplier</li>
-                        <li>PUT /api/suppliers/{id} - Uppdatera din supplier</li>
-                    </ul>
                     <p><strong>Som Brand:</strong></p>
                     <ul>
-                        <li>GET /api/suppliers - Relaterade suppliers (via brand_suppliers)</li>
-                        <li>GET /api/suppliers/{id} - Hämta relaterad supplier (läsåtkomst)</li>
+                        <li>GET /api/brands - Ditt eget brand (med items-filter)</li>
+                        <li>GET /api/brands/all - Ditt eget brand (för dropdowns)</li>
+                        <li>GET /api/brands/{id} - Hämta ditt brand</li>
+                        <li>PUT /api/brands/{id} - Uppdatera ditt brand</li>
                     </ul>
-                    <p><em>Obs: Suppliers kan inte skapas eller tas bort via API.</em></p>
+                    <p><strong>Som Supplier:</strong></p>
+                    <ul>
+                        <li>GET /api/brands - Relaterade brands (via brand_suppliers)</li>
+                        <li>GET /api/brands/{id} - Hämta relaterat brand (läsåtkomst)</li>
+                    </ul>
+                    <p><em>Obs: Brands kan inte skapas eller tas bort via API.</em></p>
                 </div>
             </div>
         </div>
@@ -129,7 +130,7 @@ Auth::requireLogin();
         }
 
         function isReadonly() {
-            return getTenantType() === 'brand';
+            return getTenantType() === 'supplier';
         }
 
         function showTenantBanner() {
@@ -186,73 +187,73 @@ Auth::requireLogin();
             }
         }
 
-        async function loadSuppliers() {
+        async function loadBrands() {
             const apiKey = getApiKey();
             if (!apiKey) return;
 
             try {
-                const res = await fetch('/api/suppliers', {
+                const res = await fetch('/api/brands/all', {
                     headers: { 'X-API-Key': apiKey }
                 });
                 const json = await res.json();
                 document.getElementById('response').textContent = JSON.stringify(json, null, 2);
                 document.getElementById('response').className = 'response-section' + (json.error ? ' error' : '');
 
-                const select = document.getElementById('supplier_id_select');
+                const select = document.getElementById('brand_id_select');
                 select.innerHTML = '';
                 if (json.data && json.data.length > 0) {
-                    json.data.forEach(s => {
-                        select.innerHTML += `<option value="${s.id}">${s.id}: ${s.supplier_name}</option>`;
+                    json.data.forEach(b => {
+                        select.innerHTML += `<option value="${b.id}">${b.id}: ${b.brand_name}</option>`;
                     });
                     // Visa dropdown bara om det finns flera alternativ
                     select.style.display = json.data.length > 1 ? 'block' : 'none';
-                    await loadSupplierData(json.data[0].id);
+                    await loadBrandData(json.data[0].id);
                 } else {
                     select.style.display = 'none';
                     clearForm();
                 }
             } catch (e) {
-                console.error('Error loading suppliers:', e);
+                console.error('Error loading brands:', e);
                 document.getElementById('response').textContent = 'Error: ' + e.message;
                 document.getElementById('response').className = 'response-section error';
             }
         }
 
-        async function onSupplierSelect() {
-            const id = document.getElementById('supplier_id_select').value;
+        async function onBrandSelect() {
+            const id = document.getElementById('brand_id_select').value;
             if (id) {
-                await loadSupplierData(id);
+                await loadBrandData(id);
             }
         }
 
-        async function loadSupplierData(id) {
-            const json = await api('GET', '/api/suppliers/' + id);
+        async function loadBrandData(id) {
+            const json = await api('GET', '/api/brands/' + id);
             if (json && json.data) {
-                const s = json.data;
-                document.getElementById('supplier_name').value = s.supplier_name || '';
-                document.getElementById('supplier_location').value = s.supplier_location || '';
-                document.getElementById('facility_registry').value = s.facility_registry || '';
-                document.getElementById('facility_identifier').value = s.facility_identifier || '';
-                document.getElementById('operator_registry').value = s.operator_registry || '';
-                document.getElementById('operator_identifier').value = s.operator_identifier || '';
-                document.getElementById('lei').value = s.lei || '';
-                document.getElementById('gs1_company_prefix').value = s.gs1_company_prefix || '';
+                const b = json.data;
+                document.getElementById('brand_name').value = b.brand_name || '';
+                document.getElementById('sub_brand').value = b.sub_brand || '';
+                document.getElementById('parent_company').value = b.parent_company || '';
+                document.getElementById('trader').value = b.trader || '';
+                document.getElementById('trader_location').value = b.trader_location || '';
+                document.getElementById('logo_url').value = b.logo_url || '';
+                document.getElementById('lei').value = b.lei || '';
+                document.getElementById('gs1_company_prefix').value = b.gs1_company_prefix || '';
             }
         }
 
         function clearForm() {
-            document.getElementById('supplier_name').value = '';
-            document.getElementById('supplier_location').value = '';
-            document.getElementById('facility_registry').value = '';
-            document.getElementById('facility_identifier').value = '';
-            document.getElementById('operator_registry').value = '';
-            document.getElementById('operator_identifier').value = '';
+            document.getElementById('brand_name').value = '';
+            document.getElementById('sub_brand').value = '';
+            document.getElementById('parent_company').value = '';
+            document.getElementById('trader').value = '';
+            document.getElementById('trader_location').value = '';
+            document.getElementById('logo_url').value = '';
             document.getElementById('lei').value = '';
             document.getElementById('gs1_company_prefix').value = '';
         }
 
         function update() {
-            const id = document.getElementById('supplier_id_select').value;
+            const id = document.getElementById('brand_id_select').value;
             if (!id) return;
 
             const lei = document.getElementById('lei').value.toUpperCase().trim();
@@ -269,20 +270,20 @@ Auth::requireLogin();
                 return;
             }
 
-            api('PUT', '/api/suppliers/' + id, {
-                supplier_name: document.getElementById('supplier_name').value || null,
-                supplier_location: document.getElementById('supplier_location').value || null,
-                facility_registry: document.getElementById('facility_registry').value || null,
-                facility_identifier: document.getElementById('facility_identifier').value || null,
-                operator_registry: document.getElementById('operator_registry').value || null,
-                operator_identifier: document.getElementById('operator_identifier').value || null,
+            api('PUT', '/api/brands/' + id, {
+                brand_name: document.getElementById('brand_name').value || null,
+                sub_brand: document.getElementById('sub_brand').value || null,
+                parent_company: document.getElementById('parent_company').value || null,
+                trader: document.getElementById('trader').value || null,
+                trader_location: document.getElementById('trader_location').value || null,
+                logo_url: document.getElementById('logo_url').value || null,
                 lei: lei || null,
                 gs1_company_prefix: gs1 || null
             });
         }
 
         showTenantBanner();
-        loadSuppliers();
+        loadBrands();
     </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/Config/Auth.php';
+require_once __DIR__ . '/../../src/Config/Auth.php';
 
 use App\Config\Auth;
 

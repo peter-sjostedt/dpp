@@ -25,7 +25,7 @@ $dispatcher = FastRoute\simpleDispatcher(function(RouteCollector $r) {
         a{display:inline-block;margin:20px;padding:15px 30px;background:#4CAF50;color:white;text-decoration:none;border-radius:8px}
         a:hover{background:#45a049}</style></head>
         <body><h1>DPP Platform API</h1><p>Digital Product Passport</p>
-        <a href="/test.php">Testpanel</a><a href="/api/companies">API Status</a></body></html>';
+        <a href="/testpanel/test.php">Testpanel</a><a href="/api/companies">API Status</a></body></html>';
         exit;
     });
 

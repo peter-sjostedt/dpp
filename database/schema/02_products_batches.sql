@@ -8,6 +8,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS items;
 DROP TABLE IF EXISTS batch_materials;
 DROP TABLE IF EXISTS batches;
+DROP TABLE IF EXISTS purchase_order_lines;
 DROP TABLE IF EXISTS purchase_orders;
 DROP TABLE IF EXISTS product_variants;
 DROP TABLE IF EXISTS product_components;
@@ -228,6 +229,21 @@ CREATE TABLE purchase_orders (
     INDEX idx_po_supplier (supplier_id),
     INDEX idx_po_product (product_id)
 );
+
+-- ============================================
+-- PURCHASE ORDER LINES (antal per variant)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS purchase_order_lines (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    purchase_order_id INT NOT NULL,
+    product_variant_id INT NOT NULL,
+    quantity INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_variant_id) REFERENCES product_variants(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================
 -- BATCHES (Produktionsomgångar, skapas av Supplier)

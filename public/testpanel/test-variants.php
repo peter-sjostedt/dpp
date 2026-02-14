@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../src/Config/Auth.php';
+require_once __DIR__ . '/../../src/Config/Auth.php';
 use App\Config\Auth;
 Auth::requireLogin();
 ?>
@@ -7,19 +7,20 @@ Auth::requireLogin();
 <html lang="sv">
 <head>
     <meta charset="UTF-8">
-    <title>Items - DPP Test</title>
+    <title>Variants - DPP Test</title>
     <style>
         body { font-family: Arial; margin: 0; padding: 20px; background: #f5f5f5; }
         .header { background: #1a237e; color: white; padding: 20px; margin: -20px -20px 20px; }
         .header a { color: white; }
         .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .form-section { background: white; padding: 20px; border-radius: 8px; max-height: 85vh; overflow-y: auto; }
-        .response-section { background: #263238; color: #4CAF50; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; min-height: 400px; overflow-y: auto; }
+        .form-section { background: white; padding: 20px; border-radius: 8px; }
+        .response-section { background: #263238; color: #4CAF50; padding: 20px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; min-height: 400px; }
         input, select { width: 100%; padding: 10px; margin: 5px 0 15px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         label { font-weight: bold; color: #666; }
         button { padding: 12px 24px; margin: 5px 5px 5px 0; border: none; border-radius: 4px; cursor: pointer; color: white; }
         .btn-get { background: #4CAF50; }
         .btn-post { background: #2196F3; }
+        .btn-put { background: #FF9800; }
         .btn-delete { background: #f44336; }
         .btn-refresh { background: #9C27B0; }
         .error { color: #f44336; }
@@ -39,8 +40,8 @@ Auth::requireLogin();
     <div class="header">
         <a href="test.php">&larr; Tillbaka</a>
         <a href="docs/dataflow.html" style="float: right;">Dataflöde &rarr;</a>
-        <h1>Items (Individuella produkter)</h1>
-        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">🆕 Per plagg (Fas 2)</p>
+        <h1>Product Variants</h1>
+        <p style="margin: 5px 0 0; opacity: 0.8; font-size: 14px;">♻️ Registrera en gång</p>
         <div id="tenant_banner" style="margin-top: 10px; padding: 8px 15px; background: rgba(255,255,255,0.2); border-radius: 4px; display: inline-block; font-size: 13px;"></div>
     </div>
 
@@ -49,7 +50,7 @@ Auth::requireLogin();
             <button class="btn-refresh" onclick="loadAll()">Ladda om data</button>
 
             <div class="section" id="sec-select">
-                <div class="section-header" onclick="toggle('sec-select')"><h2>Välj batch</h2></div>
+                <div class="section-header" onclick="toggle('sec-select')" id="sec-select-header"><h2>Välj produkt</h2></div>
                 <div class="section-content">
                     <div id="brand_wrapper">
                         <label>Brand:</label>
@@ -57,50 +58,54 @@ Auth::requireLogin();
                     </div>
                     <label>Product:</label>
                     <select id="product_id"></select>
-                    <label>Batch:</label>
-                    <select id="batch_id"></select>
-                    <button class="btn-get" onclick="api('GET', '/api/batches/' + document.getElementById('batch_id').value + '/items')">Hämta items</button>
+                    <button class="btn-get" onclick="api('GET', '/api/products/' + getProductId() + '/variants')">Hämta varianter</button>
                 </div>
             </div>
 
             <div class="section" id="sec-create">
-                <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa enskild item</h2></div>
+                <div class="section-header" onclick="toggle('sec-create')"><h2>Skapa ny</h2></div>
                 <div class="section-content">
-                    <label>SGTIN (genereras automatiskt om tomt):</label>
-                    <input type="text" id="sgtin" placeholder="7350012345001.000001">
-                    <label>Data Carrier Type:</label>
-                    <input type="text" id="data_carrier_type" placeholder="QR, NFC, RFID">
+                    <label>Artikelnummer:</label>
+                    <input type="text" id="item_number" placeholder="ART-12345-M-BLK">
+                    <label>Storlek:</label>
+                    <input type="text" id="size" placeholder="M">
+                    <label>Landskod (ISO):</label>
+                    <input type="text" id="size_country_code" placeholder="SE" maxlength="2">
+                    <label>Varumärkesfärg:</label>
+                    <input type="text" id="color_brand" placeholder="Navy Blue">
+                    <label>Standardfärg:</label>
+                    <select id="color_general">
+                        <option value="">-- Välj --</option>
+                        <option value="black">Black</option>
+                        <option value="white">White</option>
+                        <option value="grey">Grey</option>
+                        <option value="navy">Navy</option>
+                        <option value="blue">Blue</option>
+                        <option value="red">Red</option>
+                        <option value="green">Green</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="orange">Orange</option>
+                        <option value="pink">Pink</option>
+                        <option value="purple">Purple</option>
+                        <option value="brown">Brown</option>
+                        <option value="beige">Beige</option>
+                        <option value="multicolour">Multicolour</option>
+                        <option value="print">Print</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <label>GTIN:</label>
+                    <input type="text" id="gtin" placeholder="1234567890123" maxlength="14">
                     <button class="btn-post" onclick="create()">Skapa</button>
                 </div>
             </div>
 
-            <div class="section" id="sec-bulk">
-                <div class="section-header" onclick="toggle('sec-bulk')"><h2>Skapa flera (bulk)</h2></div>
-                <div class="section-content">
-                    <label>Antal:</label>
-                    <input type="number" id="bulk_quantity" placeholder="10" value="10">
-                    <label>Prefix:</label>
-                    <input type="text" id="bulk_prefix" placeholder="DPP" value="DPP">
-                    <button class="btn-post" onclick="createBulk()">Skapa bulk</button>
-                </div>
-            </div>
-
             <div class="section" id="sec-get">
-                <div class="section-header" onclick="toggle('sec-get')"><h2>Hämta item</h2></div>
+                <div class="section-header" onclick="toggle('sec-get')"><h2>Hämta/Ta bort</h2></div>
                 <div class="section-content">
-                    <label>Item:</label>
-                    <select id="item_id_select"></select>
-                    <button class="btn-get" onclick="api('GET', '/api/items/' + getItemId())">Hämta</button>
-                    <button class="btn-delete" onclick="api('DELETE', '/api/items/' + getItemId())">Ta bort</button>
-                </div>
-            </div>
-
-            <div class="section" id="sec-search">
-                <div class="section-header" onclick="toggle('sec-search')"><h2>Sök på serienummer</h2></div>
-                <div class="section-content">
-                    <label>Serienummer:</label>
-                    <input type="text" id="search_serial" placeholder="DPP-XXXXXXXX-TIMESTAMP">
-                    <button class="btn-get" onclick="api('GET', '/api/items/serial/' + document.getElementById('search_serial').value)">Sök</button>
+                    <label>Variant:</label>
+                    <select id="variant_id_select"></select>
+                    <button class="btn-get" onclick="api('GET', '/api/variants/' + getVariantId())">Hämta</button>
+                    <button class="btn-delete" onclick="api('DELETE', '/api/variants/' + getVariantId())">Ta bort</button>
                 </div>
             </div>
         </div>
@@ -113,10 +118,20 @@ Auth::requireLogin();
             document.getElementById(id).classList.toggle('open');
         }
 
-        function getItemId() {
-            const val = document.getElementById('item_id_select').value;
+        function getProductId() {
+            const val = document.getElementById('product_id').value;
             if (!val) {
-                document.getElementById('response').textContent = 'Välj en item först!';
+                document.getElementById('response').textContent = 'Välj en produkt först!';
+                document.getElementById('response').className = 'response-section error';
+                return null;
+            }
+            return val;
+        }
+
+        function getVariantId() {
+            const val = document.getElementById('variant_id_select').value;
+            if (!val) {
+                document.getElementById('response').textContent = 'Välj en variant först!';
                 document.getElementById('response').className = 'response-section error';
                 return null;
             }
@@ -208,7 +223,7 @@ Auth::requireLogin();
             const brandId = document.getElementById('brand_id').value;
             const select = document.getElementById('product_id');
             select.innerHTML = '<option value="">-- Välj produkt --</option>';
-            clearDown('batch_id', 'item_id_select');
+            document.getElementById('variant_id_select').innerHTML = '<option value="">-- Välj variant --</option>';
 
             if (brandId) {
                 const res = await fetch('/api/brands/' + brandId + '/products', {
@@ -223,85 +238,48 @@ Auth::requireLogin();
             }
         }
 
-        async function loadBatches() {
+        async function loadVariants() {
             const apiKey = getApiKey();
             if (!apiKey) return;
 
             const productId = document.getElementById('product_id').value;
-            const select = document.getElementById('batch_id');
-            select.innerHTML = '<option value="">-- Välj batch --</option>';
-            clearDown('item_id_select');
+            const select = document.getElementById('variant_id_select');
+            select.innerHTML = '<option value="">-- Välj variant --</option>';
 
             if (productId) {
-                const res = await fetch('/api/products/' + productId + '/batches', {
+                const res = await fetch('/api/products/' + productId + '/variants', {
                     headers: { 'X-API-Key': apiKey }
                 });
                 const json = await res.json();
                 if (json.data) {
-                    json.data.forEach(b => {
-                        select.innerHTML += `<option value="${b.id}">${b.id}: ${b.batch_number}</option>`;
+                    json.data.forEach(v => {
+                        select.innerHTML += `<option value="${v.id}">${v.id}: ${v.item_number || v.gtin || '-'} (${v.size || '-'} / ${v.color_brand || '-'})</option>`;
                     });
                 }
             }
-        }
-
-        async function loadItems() {
-            const apiKey = getApiKey();
-            if (!apiKey) return;
-
-            const batchId = document.getElementById('batch_id').value;
-            const select = document.getElementById('item_id_select');
-            select.innerHTML = '<option value="">-- Välj item --</option>';
-
-            if (batchId) {
-                const res = await fetch('/api/batches/' + batchId + '/items', {
-                    headers: { 'X-API-Key': apiKey }
-                });
-                const json = await res.json();
-                if (json.data) {
-                    json.data.forEach(i => {
-                        select.innerHTML += `<option value="${i.id}">${i.id}: ${i.sgtin}</option>`;
-                    });
-                }
-            }
-        }
-
-        function clearDown(...ids) {
-            ids.forEach(id => {
-                const el = document.getElementById(id);
-                const label = id.replace('_', ' ');
-                el.innerHTML = `<option value="">-- Välj ${label} --</option>`;
-            });
         }
 
         function loadAll() {
             loadBrands();
-            clearDown('product_id', 'batch_id', 'item_id_select');
+            document.getElementById('product_id').innerHTML = '<option value="">-- Välj produkt --</option>';
+            document.getElementById('variant_id_select').innerHTML = '<option value="">-- Välj variant --</option>';
         }
 
         document.getElementById('brand_id').addEventListener('change', loadProducts);
-        document.getElementById('product_id').addEventListener('change', loadBatches);
-        document.getElementById('batch_id').addEventListener('change', loadItems);
+        document.getElementById('product_id').addEventListener('change', loadVariants);
 
         showTenantBanner();
         loadAll();
 
         function create() {
-            const data = {
-                data_carrier_type: document.getElementById('data_carrier_type').value || null
-            };
-            const sgtin = document.getElementById('sgtin').value;
-            if (sgtin) data.sgtin = sgtin;
-
-            api('POST', '/api/batches/' + document.getElementById('batch_id').value + '/items', data)
-                .then(() => loadItems());
-        }
-
-        function createBulk() {
-            api('POST', '/api/batches/' + document.getElementById('batch_id').value + '/items/bulk', {
-                quantity: parseInt(document.getElementById('bulk_quantity').value),
-                prefix: document.getElementById('bulk_prefix').value || 'DPP'
-            }).then(() => loadItems());
+            api('POST', '/api/products/' + document.getElementById('product_id').value + '/variants', {
+                item_number: document.getElementById('item_number').value || null,
+                size: document.getElementById('size').value || null,
+                size_country_code: document.getElementById('size_country_code').value || null,
+                color_brand: document.getElementById('color_brand').value || null,
+                color_general: document.getElementById('color_general').value || null,
+                gtin: document.getElementById('gtin').value || null
+            }).then(() => loadVariants());
         }
     </script>
 </body>

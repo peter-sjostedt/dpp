@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/../src/Config/Auth.php';
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../src/Config/Auth.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 use App\Config\Auth;
 use App\Config\Database;

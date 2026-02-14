@@ -31,6 +31,16 @@ return function (RouteCollector $r) {
     $r->addRoute('DELETE', '/api/purchase-orders/{id:\d+}', ['App\Controllers\PurchaseOrderController', 'delete']);
 
     // ============================================
+    // PURCHASE ORDER LINES (Brand CRUD, Supplier read-only)
+    // ============================================
+
+    $r->addRoute('GET', '/api/purchase-orders/{poId:\d+}/lines', ['App\Controllers\PurchaseOrderLineController', 'index']);
+    $r->addRoute('POST', '/api/purchase-orders/{poId:\d+}/lines', ['App\Controllers\PurchaseOrderLineController', 'create']);
+    $r->addRoute('GET', '/api/purchase-order-lines/{id:\d+}', ['App\Controllers\PurchaseOrderLineController', 'show']);
+    $r->addRoute('PUT', '/api/purchase-order-lines/{id:\d+}', ['App\Controllers\PurchaseOrderLineController', 'update']);
+    $r->addRoute('DELETE', '/api/purchase-order-lines/{id:\d+}', ['App\Controllers\PurchaseOrderLineController', 'delete']);
+
+    // ============================================
     // BATCHES (Supplier skapar under en PO)
     // ============================================
 
