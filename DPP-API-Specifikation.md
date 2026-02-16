@@ -1,11 +1,11 @@
-# DPP API - Specifikation for Windows-app
+# DPP API - Specifikation
 
 ## Oversikt
 
 DPP (Digital Product Passport) API for textil- och modeindustrin.
 Multi-tenant REST API med JSON request/response.
 
-- **Bas-URL:** `http://localhost/dpp/api.php?route=/api/...` (Laragon) eller `https://din-doman.se/api/...`
+- **Bas-URL:** `https://din-doman.se/api/...`
 - **Format:** JSON (Content-Type: application/json)
 - **CORS:** Tillater alla origins
 
@@ -20,9 +20,11 @@ Alla vanliga endpoints kraver `X-API-Key` header.
 X-API-Key: <api_key_fran_brands_eller_suppliers_tabellen>
 ```
 
-API-nyckeln avgoor om du ar autentiserad som **brand** eller **supplier**:
-- **Brand:** Full CRUD pa egna resurser
-- **Supplier:** Lasatkomst till relaterade brands resurser
+API-nyckeln avgor om du ar autentiserad som **brand** eller **supplier**.
+
+**Atkomstkontroll:**
+- **Brand:** Ager produkter, POs, produktdata. Laser batcher/items/material via PO-koppling.
+- **Supplier:** Ager fabriksmaterial. Skapar batcher/items under POs riktade till sig. Laser POs riktade till sig.
 
 ### Admin API
 Admin-endpoints (`/api/admin/*`) kraver `X-Admin-Key` header.
@@ -61,9 +63,9 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 | 200 | OK |
 | 400 | Valideringsfel / Bad request |
 | 401 | Saknad eller ogiltig API-nyckel |
-| 403 | Ej behorig (inaktivt konto, utgangen nyckel) |
+| 403 | Ej behorig (fel roll, inaktivt konto) |
 | 404 | Resursen hittades inte |
-| 405 | Metoden ej tillatna |
+| 405 | Metoden ej tillaten |
 | 500 | Serverfel |
 
 ---
@@ -74,7 +76,7 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
-| GET | `/api/brands` | Lista brands (filtrerade, med items) | X-API-Key |
+| GET | `/api/brands` | Lista brands (filtrerade) | X-API-Key |
 | GET | `/api/brands/all` | Lista alla brands (for dropdowns) | X-API-Key |
 | GET | `/api/brands/{id}` | Hamta ett brand | X-API-Key |
 | PUT | `/api/brands/{id}` | Uppdatera brand (bara eget) | X-API-Key (brand) |
@@ -83,7 +85,7 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 ```json
 {
   "id": 1,
-  "brand_name": "Hospitex",
+  "brand_name": "VardTex",
   "logo_url": "https://...",
   "sub_brand": null,
   "parent_company": "Parent Corp",
@@ -92,23 +94,7 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
   "lei": "ABCDEFGHIJ1234567890",
   "gs1_company_prefix": "7350001",
   "api_key": "...",
-  "_is_active": true,
-  "created_at": "2025-01-01 00:00:00",
-  "updated_at": "2025-01-01 00:00:00"
-}
-```
-
-**PUT /api/brands/{id} - Body (alla falt valfria):**
-```json
-{
-  "brand_name": "Nytt namn",
-  "logo_url": "https://...",
-  "sub_brand": "Sub Brand",
-  "parent_company": "Parent",
-  "trader": "Trader",
-  "trader_location": "Location",
-  "lei": "ABCDEFGHIJ1234567890",
-  "gs1_company_prefix": "7350001"
+  "_is_active": true
 }
 ```
 
@@ -128,17 +114,13 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 ```json
 {
   "id": 1,
-  "supplier_name": "Textil AB",
-  "supplier_location": "Boras, Sverige",
+  "supplier_name": "Porto Textil Lda",
+  "supplier_location": "Porto, Portugal",
   "facility_registry": "GLN",
   "facility_identifier": "7350001000001",
-  "operator_registry": null,
-  "operator_identifier": null,
-  "country_of_origin_confection": "SE",
-  "country_of_origin_dyeing": "SE",
-  "country_of_origin_weaving": "SE",
-  "lei": null,
-  "gs1_company_prefix": null,
+  "country_of_origin_confection": "PT",
+  "country_of_origin_dyeing": "PT",
+  "country_of_origin_weaving": "PT",
   "api_key": "...",
   "_is_active": true
 }
@@ -158,20 +140,13 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 | PUT | `/api/brand-suppliers/{id}/deactivate` | Inaktivera relation | X-API-Key (brand) |
 | DELETE | `/api/brand-suppliers/{id}` | Ta bort relation | X-API-Key (brand) |
 
-**POST body:**
-```json
-{
-  "supplier_id": 1
-}
-```
-
 ---
 
 ### 4. PRODUCTS
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
-| GET | `/api/products` | Lista produkter (med items-filter) | X-API-Key |
+| GET | `/api/products` | Lista produkter | X-API-Key |
 | GET | `/api/brands/{brandId}/products` | Lista produkter for ett brand | X-API-Key |
 | POST | `/api/brands/{brandId}/products` | Skapa produkt | X-API-Key (brand) |
 | GET | `/api/products/{id}` | Hamta produkt (inkl. care, compliance, etc.) | X-API-Key |
@@ -182,32 +157,19 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 **Product-objekt (POST/PUT body):**
 ```json
 {
-  "product_name": "Classic T-Shirt",
+  "product_name": "Scrubs Tunika",
   "gtin_type": "GTIN",
   "gtin": "7350001000001",
-  "description": "100% organic cotton t-shirt",
-  "photo_url": "https://...",
-  "article_number": "TSH-001-BLK",
-  "commodity_code_system": "HS",
-  "commodity_code_number": "6109.10",
-  "year_of_sale": 2025,
-  "season_of_sale": "SP",
-  "price_currency": "EUR",
-  "msrp": 29.99,
-  "resale_price": 15.00,
+  "description": "Antimikrobiell tunika for vardpersonal",
   "category": "clothing",
   "product_group": "Top",
-  "type_line_concept": "Active Wear",
-  "type_item": "T-Shirt",
-  "age_group": "Adult",
+  "type_line_concept": "Healthcare",
+  "type_item": "Tunic",
   "gender": "Unisex",
   "market_segment": "mid-price",
-  "water_properties": "Water-resistant",
+  "water_properties": "Water Repellent",
   "net_weight": 0.250,
-  "weight_unit": "kg",
-  "data_carrier_type": "QR",
-  "data_carrier_material": "Paper",
-  "data_carrier_location": "Hang tag"
+  "data_carrier_type": "RFID"
 }
 ```
 
@@ -230,23 +192,12 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 {
   "component": "Body fabric",
   "material": "Textile",
-  "content_name": "Cotton",
-  "content_value": 95.00,
-  "content_source": "Organic",
-  "material_trademarks": "Supima",
-  "trim_type": null,
-  "component_weight": 0.200,
+  "content_name": "Polyester",
+  "content_value": 65.00,
+  "content_source": "Recycled",
   "recycled": true,
-  "recycled_percentage": 30.00,
-  "recycled_input_source": "Post-consumer",
-  "leather_species": null,
-  "leather_grade": null,
-  "sewing_thread_content": "Polyester",
-  "print_ink_type": "Water-based",
-  "dye_class": "Reactive",
-  "dye_class_standard": "Oeko-Tex",
-  "finishes": "Anti-microbial",
-  "pattern": "Solid"
+  "recycled_percentage": 100.00,
+  "recycled_input_source": "Post-consumer"
 }
 ```
 
@@ -265,33 +216,24 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 **Variant-objekt:**
 ```json
 {
-  "item_number": "TSH-001-BLK-M",
-  "size": "M",
-  "size_country_code": "SE",
-  "color_brand": "Midnight Black",
-  "color_general": "Black",
+  "item_number": "SCR-TUN-WHT-S",
+  "size": "S",
+  "size_country_code": "EU",
+  "color_brand": "Clinical White",
+  "color_general": "white",
   "gtin": "73500010000012"
 }
 ```
 
 ---
 
-### 7. CARE INFORMATION (Skotselinformation)
+### 7. CARE INFORMATION
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
 | GET | `/api/products/{productId}/care` | Hamta skotselinfo | X-API-Key |
 | PUT | `/api/products/{productId}/care` | Skapa/uppdatera | X-API-Key (brand) |
 | DELETE | `/api/products/{productId}/care` | Ta bort | X-API-Key (brand) |
-
-**Care-objekt:**
-```json
-{
-  "care_image_url": "https://...",
-  "care_text": "Tvattas i 40 grader. Torktumla ej.",
-  "safety_information": "Haller ej for oppna flammar."
-}
-```
 
 ---
 
@@ -303,21 +245,6 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 | PUT | `/api/products/{productId}/compliance` | Skapa/uppdatera | X-API-Key (brand) |
 | DELETE | `/api/products/{productId}/compliance` | Ta bort | X-API-Key (brand) |
 
-**Compliance-objekt:**
-```json
-{
-  "harmful_substances": "No",
-  "harmful_substances_info": null,
-  "certifications": "GOTS, GRS",
-  "certifications_validation": "Certificate #12345",
-  "chemical_compliance_standard": "REACH",
-  "chemical_compliance_validation": "Test report #67890",
-  "chemical_compliance_link": "https://...",
-  "microfibers": "No",
-  "traceability_provider": "TextileGenesis"
-}
-```
-
 ---
 
 ### 9. CIRCULARITY INFORMATION
@@ -327,21 +254,6 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 | GET | `/api/products/{productId}/circularity` | Hamta cirkularitet | X-API-Key |
 | PUT | `/api/products/{productId}/circularity` | Skapa/uppdatera | X-API-Key (brand) |
 | DELETE | `/api/products/{productId}/circularity` | Ta bort | X-API-Key (brand) |
-
-**Circularity-objekt:**
-```json
-{
-  "performance": "Designed for 5+ years of use",
-  "recyclability": "Mono-material, fully recyclable",
-  "take_back_instructions": "Return to any store",
-  "recycling_instructions": "Remove buttons before recycling",
-  "disassembly_instructions_sorters": "Cut seams, separate components",
-  "disassembly_instructions_user": "Remove zipper before recycling",
-  "circular_design_strategy": "Design for longevity",
-  "circular_design_description": "Reinforced seams and high-quality materials",
-  "repair_instructions": "Patches available at our website"
-}
-```
 
 ---
 
@@ -353,55 +265,148 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 | PUT | `/api/products/{productId}/sustainability` | Skapa/uppdatera | X-API-Key (brand) |
 | DELETE | `/api/products/{productId}/sustainability` | Ta bort | X-API-Key (brand) |
 
-**Sustainability-objekt:**
-```json
-{
-  "brand_statement": "We commit to carbon neutrality by 2030",
-  "statement_link": "https://...",
-  "environmental_footprint": "Carbon footprint: 5.2 kg CO2e"
-}
-```
-
 ---
 
-### 11. BATCHES (Produktionsbatcher)
+### 11. PURCHASE ORDERS (Inkopsorder)
+
+Brand skapar POs riktade till en supplier for en specifik produkt. Supplier kan acceptera/avvisa.
+
+**PO-statusflode:**
+```
+draft --> sent --> accepted --> fulfilled
+                     |
+                  cancelled (reject)
+draft --> cancelled (brand cancel)
+sent  --> cancelled (brand cancel)
+```
+
+#### Brand-endpoints
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
-| GET | `/api/batches` | Lista alla batcher | X-API-Key |
-| GET | `/api/products/{productId}/batches` | Lista batcher for produkt | X-API-Key |
-| POST | `/api/products/{productId}/batches` | Skapa batch | X-API-Key (brand) |
-| GET | `/api/batches/{id}` | Hamta batch | X-API-Key |
-| PUT | `/api/batches/{id}` | Uppdatera batch | X-API-Key (brand) |
-| DELETE | `/api/batches/{id}` | Ta bort batch | X-API-Key (brand) |
+| GET | `/api/purchase-orders` | Lista brand:s POs | X-API-Key (brand) |
+| POST | `/api/purchase-orders` | Skapa PO (status: draft) | X-API-Key (brand) |
+| GET | `/api/purchase-orders/{id}` | Visa PO (inkl. lines + batcher) | X-API-Key |
+| PUT | `/api/purchase-orders/{id}` | Uppdatera PO (bara draft) | X-API-Key (brand) |
+| DELETE | `/api/purchase-orders/{id}` | Ta bort PO (bara draft, inga batcher) | X-API-Key (brand) |
+| PUT | `/api/purchase-orders/{id}/send` | Skicka till supplier (draft -> sent) | X-API-Key (brand) |
+| PUT | `/api/purchase-orders/{id}/cancel` | Avbryt (draft/sent -> cancelled) | X-API-Key (brand) |
+| GET | `/api/suppliers/{supplierId}/purchase-orders` | Lista POs for supplier | X-API-Key (brand) |
+| GET | `/api/products/{productId}/purchase-orders` | Lista POs for produkt | X-API-Key |
 
-**Batch-objekt:**
+#### Supplier-endpoints
+
+| Metod | Endpoint | Beskrivning | Auth |
+|-------|----------|-------------|------|
+| GET | `/api/purchase-orders` | Lista inkommande POs | X-API-Key (supplier) |
+| GET | `/api/purchase-orders/{id}` | Visa PO (inkl. lines + batcher) | X-API-Key (supplier) |
+| PUT | `/api/purchase-orders/{id}/accept` | Acceptera (sent -> accepted) | X-API-Key (supplier) |
+| PUT | `/api/purchase-orders/{id}/reject` | Avvisa (sent -> cancelled) | X-API-Key (supplier) |
+
+**POST /api/purchase-orders - Body:**
 ```json
 {
   "supplier_id": 1,
-  "batch_number": "BATCH-2025-001",
-  "po_number": "PO-2025-100",
-  "production_date": "2025-03-15",
+  "product_id": 1,
+  "po_number": "PO-VT-2025-001",
   "quantity": 500,
-  "_status": "planned"
+  "requested_delivery_date": "2025-03-15"
 }
 ```
 
-**Status-varden:** `planned`, `in_production`, `completed`
+**Obligatoriska falt:** `supplier_id`, `product_id`, `po_number`
+
+**PUT /api/purchase-orders/{id}/send** kraver att minst 1 PO line finns.
+
+**GET /api/purchase-orders/{id}** returnerar PO med `lines` och `batches` inkluderade.
 
 ---
 
-### 12. BATCH MATERIALS (Koppling batch <-> fabriksmaterial)
+### 12. PURCHASE ORDER LINES (Orderrader)
+
+En PO line specificerar antal per produktvariant (storlek/farg). Brand only, bara pa draft-POs.
+
+| Metod | Endpoint | Beskrivning | Auth |
+|-------|----------|-------------|------|
+| GET | `/api/purchase-orders/{poId}/lines` | Lista orderrader | X-API-Key |
+| POST | `/api/purchase-orders/{poId}/lines` | Lagg till rad (bara draft) | X-API-Key (brand) |
+| GET | `/api/purchase-order-lines/{id}` | Hamta rad | X-API-Key |
+| PUT | `/api/purchase-order-lines/{id}` | Uppdatera rad (bara draft) | X-API-Key (brand) |
+| DELETE | `/api/purchase-order-lines/{id}` | Ta bort rad (bara draft) | X-API-Key (brand) |
+
+**POST body:**
+```json
+{
+  "product_variant_id": 1,
+  "quantity": 100
+}
+```
+
+**Obligatoriska falt:** `product_variant_id`, `quantity`
+
+Supplier har read-only-atkomst till PO lines.
+
+---
+
+### 13. BATCHES (Produktionsbatcher)
+
+En batch = en produktionsomgang med specifika material-inputs. Supplier skapar batcher under accepted POs. Flera batcher per PO om fabriken byter tygrulle.
+
+**Batch-statusflode:**
+```
+in_production --> completed
+```
+
+| Metod | Endpoint | Beskrivning | Auth |
+|-------|----------|-------------|------|
+| GET | `/api/batches` | Lista alla batcher (filtrerat per tenant) | X-API-Key |
+| GET | `/api/batches?status=in_production` | Filtrera pa status | X-API-Key |
+| GET | `/api/purchase-orders/{poId}/batches` | Lista batcher for PO | X-API-Key |
+| POST | `/api/purchase-orders/{poId}/batches` | Skapa batch (PO maste vara accepted) | X-API-Key (supplier) |
+| GET | `/api/batches/{id}` | Hamta batch (inkl. materials) | X-API-Key |
+| PUT | `/api/batches/{id}` | Uppdatera batch (bara in_production) | X-API-Key (supplier) |
+| PUT | `/api/batches/{id}/complete` | Slutfor batch (in_production -> completed) | X-API-Key (supplier) |
+| DELETE | `/api/batches/{id}` | Ta bort batch (bara in_production, inga items) | X-API-Key (supplier) |
+
+**POST /api/purchase-orders/{poId}/batches - Body:**
+```json
+{
+  "batch_number": "PT-2025-001",
+  "production_date": "2025-01-15",
+  "quantity": 350,
+  "facility_name": "Override Factory Name",
+  "facility_location": "Override Location",
+  "facility_registry": "GLN",
+  "facility_identifier": "1234567890",
+  "country_of_origin_confection": "PT",
+  "country_of_origin_dyeing": "PT",
+  "country_of_origin_weaving": "PT"
+}
+```
+
+**Obligatoriskt falt:** `batch_number`
+
+Facility-falt (7 st) ar overrides — NULL innebar att supplier-defaults fran PO:ns supplier anvands.
+
+Brand har read-only-atkomst till batcher.
+
+**GET /api/batches** returnerar aven `po_number`, `product_name`, `supplier_name`/`brand_name` och `item_count`.
+
+---
+
+### 14. BATCH MATERIALS (Koppling batch <-> fabriksmaterial)
+
+Supplier valjer vilka tygleveranser som anvands i en batch. Brand har read-only.
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
 | GET | `/api/batches/{batchId}/materials` | Lista material i batch | X-API-Key |
-| POST | `/api/batches/{batchId}/materials` | Koppla material till batch | X-API-Key |
+| POST | `/api/batches/{batchId}/materials` | Koppla material till batch | X-API-Key (supplier) |
 | GET | `/api/batch-materials/{id}` | Hamta koppling | X-API-Key |
-| PUT | `/api/batch-materials/{id}` | Uppdatera koppling | X-API-Key |
-| DELETE | `/api/batch-materials/{id}` | Ta bort koppling | X-API-Key |
+| PUT | `/api/batch-materials/{id}` | Uppdatera koppling | X-API-Key (supplier) |
+| DELETE | `/api/batch-materials/{id}` | Ta bort koppling | X-API-Key (supplier) |
 
-**BatchMaterial-objekt:**
+**POST body:**
 ```json
 {
   "factory_material_id": 1,
@@ -409,31 +414,35 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 }
 ```
 
+**Obligatoriskt falt:** `factory_material_id`
+
 ---
 
-### 13. ITEMS (Individuella serialiserade produkter)
+### 15. ITEMS (Individuella serialiserade produkter)
+
+Supplier skapar items under batcher. Brand har read-only.
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
 | GET | `/api/batches/{batchId}/items` | Lista items i batch | X-API-Key |
-| POST | `/api/batches/{batchId}/items` | Skapa item | X-API-Key |
-| POST | `/api/batches/{batchId}/items/bulk` | Skapa flera items | X-API-Key |
+| POST | `/api/batches/{batchId}/items` | Skapa item | X-API-Key (supplier) |
+| POST | `/api/batches/{batchId}/items/bulk` | Skapa flera items | X-API-Key (supplier) |
 | GET | `/api/items/{id}` | Hamta item via ID | X-API-Key |
 | GET | `/api/items/sgtin/{sgtin}` | Hamta item via SGTIN | X-API-Key |
-| DELETE | `/api/items/{id}` | Ta bort item | X-API-Key |
+| DELETE | `/api/items/{id}` | Ta bort item | X-API-Key (supplier) |
 
-**Item-objekt:**
+**POST body (singel):**
 ```json
 {
   "product_variant_id": 1,
   "unique_product_id": "UPD-001",
   "tid": "E28011700000020ABC",
-  "sgtin": "urn:epc:id:sgtin:735000100.001.12345",
+  "sgtin": "7350001.000001",
   "serial_number": "SN-12345"
 }
 ```
 
-**Bulk-skapande (POST .../items/bulk):**
+**POST body (bulk):**
 ```json
 {
   "product_variant_id": 1,
@@ -446,7 +455,9 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 
 ---
 
-### 14. FACTORY MATERIALS (Fabriksmaterial)
+### 16. FACTORY MATERIALS (Fabriksmaterial)
+
+Supplier ager sina material. Brand laser via brand_suppliers-relation.
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
@@ -461,15 +472,15 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 **FactoryMaterial-objekt:**
 ```json
 {
-  "material_name": "Organic Cotton Jersey 180gsm",
+  "material_name": "Polyester-Cotton Blend 180gsm",
   "material_type": "Textile",
-  "description": "GOTS-certified organic cotton jersey"
+  "description": "65/35 poly-cotton, antimikrobiell finish"
 }
 ```
 
 ---
 
-### 15. MATERIAL COMPOSITIONS (Materialsammansattning)
+### 17. MATERIAL COMPOSITIONS
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
@@ -482,18 +493,18 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 **Composition-objekt:**
 ```json
 {
-  "content_name": "Cotton",
-  "content_value": 95.00,
-  "content_source": "Organic",
-  "recycled": false,
-  "recycled_percentage": null,
-  "recycled_input_source": null
+  "content_name": "Polyester",
+  "content_value": 65.00,
+  "content_source": "Recycled",
+  "recycled": true,
+  "recycled_percentage": 100.00,
+  "recycled_input_source": "Post-consumer"
 }
 ```
 
 ---
 
-### 16. MATERIAL CERTIFICATIONS
+### 18. MATERIAL CERTIFICATIONS
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
@@ -514,7 +525,7 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 
 ---
 
-### 17. MATERIAL SUPPLY CHAIN
+### 19. MATERIAL SUPPLY CHAIN
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
@@ -529,15 +540,15 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 {
   "sequence": 1,
   "process_step": "spinning",
-  "country": "IN",
-  "facility_name": "Gujarat Spinning Mill",
+  "country": "PT",
+  "facility_name": "Porto Spinning Mill",
   "facility_identifier": "GLN-123456"
 }
 ```
 
 ---
 
-### 18. DPP EXPORT
+### 20. DPP EXPORT
 
 | Metod | Endpoint | Beskrivning | Auth |
 |-------|----------|-------------|------|
@@ -547,7 +558,51 @@ X-Admin-Key: dpp_admin_master_key_2024_secure
 
 ---
 
-### 19. ADMIN API
+### 21. DASHBOARD SUMMARY
+
+Rollbaserad sammanfattning av systemstatus.
+
+| Metod | Endpoint | Beskrivning | Auth |
+|-------|----------|-------------|------|
+| GET | `/api/dashboard/summary` | Hamta dashboard-data | X-API-Key |
+
+**Brand-response:**
+```json
+{
+  "pending_orders": 2,
+  "completed_batches": 3,
+  "incomplete_products": 4,
+  "export_ready": 5,
+  "expiring_certifications": 2
+}
+```
+
+- `pending_orders` — POs med status `sent` eller `rejected`
+- `completed_batches` — Batcher med status `completed` for brand:s POs
+- `incomplete_products` — Produkter som saknar care, compliance, components eller variants
+- `export_ready` — Kompletta produkter utan befintlig DPP-export
+- `expiring_certifications` — Materialcertifieringar som gar ut inom 30 dagar (via brand_suppliers)
+
+**Supplier-response:**
+```json
+{
+  "pending_orders": 3,
+  "batches_without_materials": 1,
+  "batches_without_items": 2,
+  "incomplete_materials": 1,
+  "expiring_certifications": 2
+}
+```
+
+- `pending_orders` — POs med status `sent`
+- `batches_without_materials` — Batcher i `in_production` utan kopplade material
+- `batches_without_items` — Batcher i `in_production` med 0 items
+- `incomplete_materials` — Factory materials utan compositions
+- `expiring_certifications` — Certifieringar som gar ut inom 30 dagar eller redan utgangna
+
+---
+
+### 22. ADMIN API
 
 Alla admin-endpoints kraver `X-Admin-Key` header.
 
@@ -587,120 +642,40 @@ Alla admin-endpoints kraver `X-Admin-Key` header.
 
 ---
 
-## Datamodell (ER-oversikt)
+## Datamodell
 
 ```
-brands (1) ----< brand_suppliers >---- (1) suppliers
-  |                                          |
-  |                                          |
-  v                                          v
-products (1) ----< batches >---- (1) suppliers
-  |                  |
-  |                  |--- batch_materials ---< factory_materials
-  |                  |                            |
-  |                  v                            |--- factory_material_compositions
-  |               items                           |--- factory_material_certifications
-  |                                               |--- factory_material_supply_chain
-  |
-  |--- product_components
-  |--- product_variants
-  |--- care_information (1:1)
-  |--- compliance_info
-  |--- product_certifications
-  |--- circularity_info (1:1)
-  |--- sustainability_info (1:1)
-  |--- dpp_exports
+brands (1) --------< brand_suppliers >-------- (1) suppliers
+  |                                                   |
+  v                                                   v
+products (1) --< purchase_orders >-- (1) suppliers    factory_materials
+  |                   |                                  |
+  |-- components      |-- purchase_order_lines           |-- compositions
+  |-- variants        |-- batches                        |-- certifications
+  |-- care (1:1)           |                             |-- supply_chain
+  |-- compliance           |-- batch_materials --< factory_materials
+  |-- circularity (1:1)    |-- items
+  |-- sustainability (1:1)
+  |-- dpp_exports
 ```
+
+**Nyckelrelationer:**
+- `purchase_orders` har `brand_id`, `supplier_id`, `product_id`
+- `batches` har `purchase_order_id` (arver brand/supplier/product via PO)
+- `items` har `batch_id` (arver allt via batch -> PO)
+- Atkomstkontroll gar alltid via `purchase_orders`-kedjan
 
 ---
 
-## Tips for Windows-app (C# / WPF / WinUI)
+## Atkomstkontroll — Sammanfattning
 
-### HttpClient-exempel (C#)
-
-```csharp
-using System.Net.Http;
-using System.Net.Http.Json;
-
-public class DppApiClient
-{
-    private readonly HttpClient _http;
-    private readonly string _baseUrl;
-
-    public DppApiClient(string baseUrl, string apiKey)
-    {
-        _baseUrl = baseUrl.TrimEnd('/');
-        _http = new HttpClient();
-        _http.DefaultRequestHeaders.Add("X-API-Key", apiKey);
-    }
-
-    // Lista produkter
-    public async Task<ApiResponse<List<Product>>> GetProductsAsync()
-    {
-        return await _http.GetFromJsonAsync<ApiResponse<List<Product>>>(
-            $"{_baseUrl}/api/products");
-    }
-
-    // Hamta en produkt
-    public async Task<ApiResponse<Product>> GetProductAsync(int id)
-    {
-        return await _http.GetFromJsonAsync<ApiResponse<Product>>(
-            $"{_baseUrl}/api/products/{id}");
-    }
-
-    // Skapa produkt
-    public async Task<ApiResponse<Product>> CreateProductAsync(int brandId, Product product)
-    {
-        var response = await _http.PostAsJsonAsync(
-            $"{_baseUrl}/api/brands/{brandId}/products", product);
-        return await response.Content.ReadFromJsonAsync<ApiResponse<Product>>();
-    }
-
-    // Uppdatera produkt
-    public async Task<ApiResponse<Product>> UpdateProductAsync(int id, Product product)
-    {
-        var response = await _http.PutAsJsonAsync(
-            $"{_baseUrl}/api/products/{id}", product);
-        return await response.Content.ReadFromJsonAsync<ApiResponse<Product>>();
-    }
-
-    // Ta bort produkt
-    public async Task<ApiResponse<object>> DeleteProductAsync(int id)
-    {
-        var response = await _http.DeleteAsync($"{_baseUrl}/api/products/{id}");
-        return await response.Content.ReadFromJsonAsync<ApiResponse<object>>();
-    }
-
-    // Hamta komplett DPP
-    public async Task<ApiResponse<DppExport>> GetDppAsync(int productId)
-    {
-        return await _http.GetFromJsonAsync<ApiResponse<DppExport>>(
-            $"{_baseUrl}/api/products/{productId}/dpp");
-    }
-}
-
-// Response-wrapper
-public class ApiResponse<T>
-{
-    public bool Success { get; set; }
-    public T Data { get; set; }
-    public string Error { get; set; }
-}
-```
-
-### Rekommenderad arkitektur
-
-```
-DppApp/
-  Models/           - Product.cs, Brand.cs, Supplier.cs, Batch.cs, Item.cs ...
-  Services/
-    DppApiClient.cs - HTTP-klient (som ovan)
-    AuthService.cs  - Hantera API-nyckel
-  ViewModels/       - MVVM ViewModels
-  Views/            - XAML-vyer (WPF/WinUI)
-```
-
-### NuGet-paket att anvanda
-- `System.Net.Http.Json` - JSON serialisering
-- `CommunityToolkit.Mvvm` - MVVM-ramverk
-- `Microsoft.Extensions.Http` - HttpClientFactory
+| Resurs | Brand | Supplier |
+|--------|-------|----------|
+| Products | CRUD (egna) | Read (via PO) |
+| Purchase Orders | CRUD + send/cancel | Read + accept/reject |
+| PO Lines | CRUD (bara draft) | Read-only |
+| Batches | Read-only | CRUD + complete |
+| Batch Materials | Read-only | CRUD |
+| Items | Read-only | Create + Read + Delete |
+| Factory Materials | Read (via relation) | CRUD (egna) |
+| Dashboard | Brand-metriker | Supplier-metriker |

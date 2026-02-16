@@ -62,9 +62,9 @@ class PurchaseOrderLineController extends TenantAwareController
             return;
         }
 
-        // Verify PO status is draft or sent
-        if (!in_array($po['_status'], ['draft', 'sent'])) {
-            Response::error('Cannot add lines to a purchase order with status: ' . $po['_status'], 400);
+        // Verify PO status is draft
+        if ($po['_status'] !== 'draft') {
+            Response::error('Can only add lines to draft purchase orders', 400);
             return;
         }
 
@@ -151,8 +151,8 @@ class PurchaseOrderLineController extends TenantAwareController
         $stmt->execute([$lineId]);
         $po = $stmt->fetch();
 
-        if ($po['_status'] === 'fulfilled') {
-            Response::error('Cannot modify lines on a fulfilled purchase order', 400);
+        if ($po['_status'] !== 'draft') {
+            Response::error('Can only modify lines on draft purchase orders', 400);
             return;
         }
 
@@ -205,7 +205,7 @@ class PurchaseOrderLineController extends TenantAwareController
             return;
         }
 
-        // Verify PO status is draft or sent
+        // Verify PO status is draft
         $stmt = $this->db->prepare(
             'SELECT po._status FROM purchase_orders po
              JOIN purchase_order_lines pol ON pol.purchase_order_id = po.id
@@ -214,8 +214,8 @@ class PurchaseOrderLineController extends TenantAwareController
         $stmt->execute([$lineId]);
         $po = $stmt->fetch();
 
-        if (!in_array($po['_status'], ['draft', 'sent'])) {
-            Response::error('Cannot delete lines from a purchase order with status: ' . $po['_status'], 400);
+        if ($po['_status'] !== 'draft') {
+            Response::error('Can only delete lines from draft purchase orders', 400);
             return;
         }
 

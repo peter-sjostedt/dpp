@@ -49,6 +49,29 @@ $draftPoId = (int) $db->lastInsertId();
 $db->exec("INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES ({$draftPoId}, 1, 50)");
 $testPoLineId = (int) $db->lastInsertId();
 
+// PO workflow test data
+$db->exec("INSERT INTO purchase_orders (brand_id, supplier_id, product_id, po_number, quantity, _status) VALUES (1, 1, 1, 'PO-TEST-SEND', 100, 'draft')");
+$sendPoId = (int) $db->lastInsertId();
+$db->exec("INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES ({$sendPoId}, 1, 100)");
+
+$db->exec("INSERT INTO purchase_orders (brand_id, supplier_id, product_id, po_number, quantity, _status) VALUES (1, 1, 1, 'PO-TEST-CANCEL', 50, 'draft')");
+$cancelPoId = (int) $db->lastInsertId();
+
+$db->exec("INSERT INTO purchase_orders (brand_id, supplier_id, product_id, po_number, quantity, _status) VALUES (1, 1, 1, 'PO-TEST-DELETE', 50, 'draft')");
+$deletePoId = (int) $db->lastInsertId();
+
+$db->exec("INSERT INTO purchase_orders (brand_id, supplier_id, product_id, po_number, quantity, _status) VALUES (1, 1, 1, 'PO-TEST-ACCEPT', 100, 'sent')");
+$acceptPoId = (int) $db->lastInsertId();
+$db->exec("INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES ({$acceptPoId}, 1, 100)");
+
+$db->exec("INSERT INTO purchase_orders (brand_id, supplier_id, product_id, po_number, quantity, _status) VALUES (1, 1, 1, 'PO-TEST-REJECT', 100, 'sent')");
+$rejectPoId = (int) $db->lastInsertId();
+$db->exec("INSERT INTO purchase_order_lines (purchase_order_id, product_variant_id, quantity) VALUES ({$rejectPoId}, 1, 100)");
+
+// Batch för complete-test (under PO 4 som är accepted)
+$db->exec("INSERT INTO batches (purchase_order_id, batch_number, quantity, _status) VALUES (4, 'TEST-COMPLETE', 50, 'in_production')");
+$completeBatchId = (int) $db->lastInsertId();
+
 // Resultat
 $results = [];
 $totalPassed = 0;
@@ -229,7 +252,7 @@ $tests = [
     ['Brand: GET DPP export', 'GET', "/products/{$productId}/dpp/export", null, $brandKey, 'tenant', [200, 404]],
 
     // ========================================
-    // TENANT API - Purchase Orders (NY!)
+    // TENANT API - Purchase Orders (read)
     // ========================================
     // Brand
     ['Brand: GET purchase-orders', 'GET', '/purchase-orders', null, $brandKey, 'tenant', [200]],
@@ -240,6 +263,12 @@ $tests = [
     ['Supplier: GET purchase-orders', 'GET', '/purchase-orders', null, $supplierKey, 'tenant', [200]],
     ['Supplier: GET purchase-order/{id}', 'GET', "/purchase-orders/{$poId}", null, $supplierKey, 'tenant', [200, 404]],
     ['Supplier: GET POs by supplier', 'GET', "/suppliers/{$supplierId}/purchase-orders", null, $supplierKey, 'tenant', [200, 404]],
+
+    // ========================================
+    // TENANT API - PO CRUD (brand)
+    // ========================================
+    ['Brand: POST create PO', 'POST', '/purchase-orders', ['supplier_id' => $supplierId, 'product_id' => $productId, 'po_number' => 'PO-TEST-CREATE', 'quantity' => 50], $brandKey, 'tenant', [200]],
+    ['Brand: PUT update draft PO', 'PUT', "/purchase-orders/{$draftPoId}", ['quantity' => 200], $brandKey, 'tenant', [200]],
 
     // ========================================
     // TENANT API - Purchase Order Lines (read)
@@ -271,16 +300,33 @@ $tests = [
     ['Brand: DELETE PO line', 'DELETE', "/purchase-order-lines/{$testPoLineId}", null, $brandKey, 'tenant', [200]],
 
     // ========================================
-    // TENANT API - Batches (ändrad: supplier skapar)
+    // TENANT API - PO Workflow (statusövergångar)
+    // ========================================
+    // Brand: send (draft → sent, kräver minst 1 line)
+    ['Brand: PUT send PO', 'PUT', "/purchase-orders/{$sendPoId}/send", null, $brandKey, 'tenant', [200]],
+    // Supplier: accept (sent → accepted)
+    ['Supplier: PUT accept PO', 'PUT', "/purchase-orders/{$acceptPoId}/accept", null, $supplierKey, 'tenant', [200]],
+    // Supplier: reject (sent → cancelled)
+    ['Supplier: PUT reject PO', 'PUT', "/purchase-orders/{$rejectPoId}/reject", null, $supplierKey, 'tenant', [200]],
+    // Brand: cancel (draft → cancelled)
+    ['Brand: PUT cancel PO', 'PUT', "/purchase-orders/{$cancelPoId}/cancel", null, $brandKey, 'tenant', [200]],
+    // Brand: delete (draft, inga batcher)
+    ['Brand: DELETE PO', 'DELETE', "/purchase-orders/{$deletePoId}", null, $brandKey, 'tenant', [200]],
+
+    // ========================================
+    // TENANT API - Batches
     // ========================================
     // Brand (read-only)
     ['Brand: GET batches', 'GET', '/batches', null, $brandKey, 'tenant', [200]],
     ['Brand: GET batches by PO', 'GET', "/purchase-orders/{$poId}/batches", null, $brandKey, 'tenant', [200, 404]],
     ['Brand: GET batch/{id}', 'GET', "/batches/{$batchId}", null, $brandKey, 'tenant', [200, 404]],
+    ['Brand: GET batches with filter', 'GET', '/batches?status=completed', null, $brandKey, 'tenant', [200]],
     // Supplier (CRUD)
     ['Supplier: GET batches', 'GET', '/batches', null, $supplierKey, 'tenant', [200]],
     ['Supplier: GET batches by PO', 'GET', "/purchase-orders/{$poId}/batches", null, $supplierKey, 'tenant', [200, 404]],
     ['Supplier: GET batch/{id}', 'GET', "/batches/{$batchId}", null, $supplierKey, 'tenant', [200, 404]],
+    // Supplier: complete batch (in_production → completed)
+    ['Supplier: PUT complete batch', 'PUT', "/batches/{$completeBatchId}/complete", null, $supplierKey, 'tenant', [200]],
 
     // ========================================
     // TENANT API - Batch Materials (ändrad: supplier CRUD)
@@ -349,11 +395,22 @@ $tests = [
     ['Admin Auth: Invalid key rejected', 'GET', '/admin/brands', null, 'invalid_admin_key', 'admin', [401]],
 
     // ========================================
+    // TENANT API - Dashboard Summary
+    // ========================================
+    ['Brand: GET dashboard summary', 'GET', '/dashboard/summary', null, $brandKey, 'tenant', [200]],
+    ['Supplier: GET dashboard summary', 'GET', '/dashboard/summary', null, $supplierKey, 'tenant', [200]],
+
+    // ========================================
     // ACCESS CONTROL - Cross-tenant rejection
     // ========================================
     ['Supplier: Cannot create product', 'POST', "/brands/{$brandId}/products", ['product_name' => 'Test'], $supplierKey, 'tenant', [403]],
     ['Supplier: Cannot create PO', 'POST', '/purchase-orders', ['supplier_id' => $supplierId, 'product_id' => $productId, 'po_number' => 'TEST'], $supplierKey, 'tenant', [403]],
+    ['Supplier: Cannot send PO', 'PUT', "/purchase-orders/{$draftPoId}/send", null, $supplierKey, 'tenant', [403]],
+    ['Supplier: Cannot cancel PO', 'PUT', "/purchase-orders/{$draftPoId}/cancel", null, $supplierKey, 'tenant', [403]],
+    ['Brand: Cannot accept PO', 'PUT', "/purchase-orders/{$poId}/accept", null, $brandKey, 'tenant', [403]],
+    ['Brand: Cannot reject PO', 'PUT', "/purchase-orders/{$poId}/reject", null, $brandKey, 'tenant', [403]],
     ['Brand: Cannot create batch', 'POST', "/purchase-orders/{$poId}/batches", ['batch_number' => 'TEST'], $brandKey, 'tenant', [403]],
+    ['Brand: Cannot complete batch', 'PUT', "/batches/{$batchId}/complete", null, $brandKey, 'tenant', [403]],
     ['Brand: Cannot create batch material', 'POST', "/batches/{$batchId}/materials", ['factory_material_id' => $materialId], $brandKey, 'tenant', [403, 404]],
     ['Brand: Cannot create item', 'POST', "/batches/{$batchId}/items", ['serial_number' => 'TEST'], $brandKey, 'tenant', [403, 404]],
 ];

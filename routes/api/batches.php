@@ -21,13 +21,22 @@ return function (RouteCollector $r) {
     // Båda: hämta enskild PO
     $r->addRoute('GET', '/api/purchase-orders/{id:\d+}', ['App\Controllers\PurchaseOrderController', 'show']);
 
-    // Brand: uppdatera PO (draft/sent/cancelled)
+    // Brand: uppdatera PO (draft only)
     $r->addRoute('PUT', '/api/purchase-orders/{id:\d+}', ['App\Controllers\PurchaseOrderController', 'update']);
 
-    // Supplier: acceptera PO
+    // Brand: skicka PO till supplier (draft → sent)
+    $r->addRoute('PUT', '/api/purchase-orders/{id:\d+}/send', ['App\Controllers\PurchaseOrderController', 'send']);
+
+    // Brand: avbryt PO (draft/sent → cancelled)
+    $r->addRoute('PUT', '/api/purchase-orders/{id:\d+}/cancel', ['App\Controllers\PurchaseOrderController', 'cancel']);
+
+    // Supplier: acceptera PO (sent → accepted)
     $r->addRoute('PUT', '/api/purchase-orders/{id:\d+}/accept', ['App\Controllers\PurchaseOrderController', 'accept']);
 
-    // Brand: ta bort PO (bara draft)
+    // Supplier: avvisa PO (sent → cancelled)
+    $r->addRoute('PUT', '/api/purchase-orders/{id:\d+}/reject', ['App\Controllers\PurchaseOrderController', 'reject']);
+
+    // Brand: ta bort PO (bara draft, inga batcher)
     $r->addRoute('DELETE', '/api/purchase-orders/{id:\d+}', ['App\Controllers\PurchaseOrderController', 'delete']);
 
     // ============================================
@@ -59,7 +68,10 @@ return function (RouteCollector $r) {
     // Supplier: uppdatera batch (status, quantity, facility, production_date)
     $r->addRoute('PUT', '/api/batches/{id:\d+}', ['App\Controllers\BatchController', 'update']);
 
-    // Supplier: ta bort batch (bara om inga items)
+    // Supplier: slutför batch (in_production → completed)
+    $r->addRoute('PUT', '/api/batches/{id:\d+}/complete', ['App\Controllers\BatchController', 'complete']);
+
+    // Supplier: ta bort batch (bara in_production, inga items)
     $r->addRoute('DELETE', '/api/batches/{id:\d+}', ['App\Controllers\BatchController', 'delete']);
 
     // ============================================

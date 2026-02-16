@@ -168,7 +168,7 @@ class PurchaseOrderController extends TenantAwareController
     }
 
     /**
-     * Create PO (brand only)
+     * Create PO (brand only, status always draft)
      */
     public function create(array $params): void
     {
@@ -205,7 +205,7 @@ class PurchaseOrderController extends TenantAwareController
             $data['po_number'],
             $data['quantity'] ?? null,
             $data['requested_delivery_date'] ?? null,
-            $data['status'] ?? 'draft'
+            'draft'
         ]);
 
         $id = (int) $this->db->lastInsertId();
@@ -213,7 +213,7 @@ class PurchaseOrderController extends TenantAwareController
     }
 
     /**
-     * Update PO (brand only, not fulfilled)
+     * Update PO (brand only, draft only)
      */
     public function update(array $params): void
     {
@@ -227,8 +227,8 @@ class PurchaseOrderController extends TenantAwareController
             return;
         }
 
-        if ($po['_status'] === 'fulfilled') {
-            Response::error('Cannot modify a fulfilled purchase order', 400);
+        if ($po['_status'] !== 'draft') {
+            Response::error('Only draft purchase orders can be updated', 400);
             return;
         }
 
@@ -238,15 +238,13 @@ class PurchaseOrderController extends TenantAwareController
             'UPDATE purchase_orders SET
                 po_number = COALESCE(?, po_number),
                 quantity = COALESCE(?, quantity),
-                requested_delivery_date = COALESCE(?, requested_delivery_date),
-                _status = COALESCE(?, _status)
+                requested_delivery_date = COALESCE(?, requested_delivery_date)
              WHERE id = ?'
         );
         $stmt->execute([
             $data['po_number'] ?? null,
             $data['quantity'] ?? null,
             $data['requested_delivery_date'] ?? null,
-            $data['status'] ?? null,
             $poId
         ]);
 
@@ -254,7 +252,73 @@ class PurchaseOrderController extends TenantAwareController
     }
 
     /**
-     * Accept PO (supplier only)
+     * Send PO to supplier (brand only, draft → sent)
+     */
+    public function send(array $params): void
+    {
+        $this->requireBrand();
+
+        $poId = (int) $params['id'];
+        $po = $this->fetchPoAsBrand($poId);
+
+        if (!$po) {
+            Response::error('Purchase order not found', 404);
+            return;
+        }
+
+        if ($po['_status'] !== 'draft') {
+            Response::error('Only draft purchase orders can be sent', 400);
+            return;
+        }
+
+        // Validate at least 1 line exists
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) as cnt FROM purchase_order_lines WHERE purchase_order_id = ?'
+        );
+        $stmt->execute([$poId]);
+        if ((int) $stmt->fetch()['cnt'] === 0) {
+            Response::error('Cannot send a purchase order without lines', 400);
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE purchase_orders SET _status = ? WHERE id = ?'
+        );
+        $stmt->execute(['sent', $poId]);
+
+        $this->show(['id' => $poId]);
+    }
+
+    /**
+     * Cancel PO (brand only, draft/sent → cancelled)
+     */
+    public function cancel(array $params): void
+    {
+        $this->requireBrand();
+
+        $poId = (int) $params['id'];
+        $po = $this->fetchPoAsBrand($poId);
+
+        if (!$po) {
+            Response::error('Purchase order not found', 404);
+            return;
+        }
+
+        if (!in_array($po['_status'], ['draft', 'sent'])) {
+            Response::error('Only draft or sent purchase orders can be cancelled', 400);
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE purchase_orders SET _status = ? WHERE id = ?'
+        );
+        $stmt->execute(['cancelled', $poId]);
+
+        $this->show(['id' => $poId]);
+    }
+
+    /**
+     * Accept PO (supplier only, sent → accepted)
      */
     public function accept(array $params): void
     {
@@ -282,7 +346,35 @@ class PurchaseOrderController extends TenantAwareController
     }
 
     /**
-     * Delete PO (brand only, draft only)
+     * Reject PO (supplier only, sent → cancelled)
+     */
+    public function reject(array $params): void
+    {
+        $this->requireSupplier();
+
+        $poId = (int) $params['id'];
+        $po = $this->fetchPoAsSupplier($poId);
+
+        if (!$po) {
+            Response::error('Purchase order not found', 404);
+            return;
+        }
+
+        if ($po['_status'] !== 'sent') {
+            Response::error('Only sent purchase orders can be rejected', 400);
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE purchase_orders SET _status = ? WHERE id = ?'
+        );
+        $stmt->execute(['cancelled', $poId]);
+
+        $this->show(['id' => $poId]);
+    }
+
+    /**
+     * Delete PO (brand only, draft only, no batches)
      */
     public function delete(array $params): void
     {
@@ -298,6 +390,16 @@ class PurchaseOrderController extends TenantAwareController
 
         if ($po['_status'] !== 'draft') {
             Response::error('Only draft purchase orders can be deleted', 400);
+            return;
+        }
+
+        // Check for batches
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) as cnt FROM batches WHERE purchase_order_id = ?'
+        );
+        $stmt->execute([$poId]);
+        if ((int) $stmt->fetch()['cnt'] > 0) {
+            Response::error('Cannot delete purchase order with existing batches', 400);
             return;
         }
 

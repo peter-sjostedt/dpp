@@ -45,36 +45,41 @@ class BatchController extends TenantAwareController
     }
 
     /**
-     * List all batches (filtered by tenant)
+     * List all batches (filtered by tenant, optional ?status= filter)
      */
     public function indexAll(array $params): void
     {
+        $statusFilter = $_GET['status'] ?? null;
+
         if (TenantContext::isBrand()) {
-            $stmt = $this->db->prepare(
-                'SELECT b.*, po.po_number, s.supplier_name, p.product_name,
+            $sql = 'SELECT b.*, po.po_number, s.supplier_name, p.product_name,
                         (SELECT COUNT(*) FROM items i WHERE i.batch_id = b.id) as item_count
                  FROM batches b
                  JOIN purchase_orders po ON b.purchase_order_id = po.id
                  LEFT JOIN suppliers s ON po.supplier_id = s.id
                  LEFT JOIN products p ON po.product_id = p.id
-                 WHERE po.brand_id = ?
-                 ORDER BY b.production_date DESC'
-            );
-            $stmt->execute([TenantContext::getBrandId()]);
+                 WHERE po.brand_id = ?';
+            $bindings = [TenantContext::getBrandId()];
         } else {
-            $stmt = $this->db->prepare(
-                'SELECT b.*, po.po_number, br.brand_name, p.product_name,
+            $sql = 'SELECT b.*, po.po_number, br.brand_name, p.product_name,
                         (SELECT COUNT(*) FROM items i WHERE i.batch_id = b.id) as item_count
                  FROM batches b
                  JOIN purchase_orders po ON b.purchase_order_id = po.id
                  LEFT JOIN brands br ON po.brand_id = br.id
                  LEFT JOIN products p ON po.product_id = p.id
-                 WHERE po.supplier_id = ?
-                 ORDER BY b.production_date DESC'
-            );
-            $stmt->execute([TenantContext::getSupplierId()]);
+                 WHERE po.supplier_id = ?';
+            $bindings = [TenantContext::getSupplierId()];
         }
 
+        if ($statusFilter && in_array($statusFilter, ['in_production', 'completed'])) {
+            $sql .= ' AND b._status = ?';
+            $bindings[] = $statusFilter;
+        }
+
+        $sql .= ' ORDER BY b.production_date DESC';
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($bindings);
         Response::success($stmt->fetchAll());
     }
 
@@ -144,8 +149,8 @@ class BatchController extends TenantAwareController
             return;
         }
 
-        // PO must be accepted or fulfilled to create batches
-        if (!in_array($po['_status'], ['accepted', 'fulfilled'])) {
+        // PO must be accepted to create batches
+        if ($po['_status'] !== 'accepted') {
             Response::error('Purchase order must be accepted before creating batches', 400);
             return;
         }
@@ -161,7 +166,7 @@ class BatchController extends TenantAwareController
             $data['batch_number'],
             $data['production_date'] ?? null,
             $data['quantity'] ?? null,
-            $data['status'] ?? 'in_production',
+            'in_production',
             $data['facility_name'] ?? null,
             $data['facility_location'] ?? null,
             $data['facility_registry'] ?? null,
@@ -176,7 +181,7 @@ class BatchController extends TenantAwareController
     }
 
     /**
-     * Update batch (supplier only)
+     * Update batch (supplier only, in_production only)
      */
     public function update(array $params): void
     {
@@ -189,6 +194,15 @@ class BatchController extends TenantAwareController
             return;
         }
 
+        // Verify batch is still in_production
+        $stmt = $this->db->prepare('SELECT _status FROM batches WHERE id = ?');
+        $stmt->execute([$batchId]);
+        $batch = $stmt->fetch();
+        if ($batch['_status'] !== 'in_production') {
+            Response::error('Can only update batches with status in_production', 400);
+            return;
+        }
+
         $data = Validator::getJsonBody();
 
         $stmt = $this->db->prepare(
@@ -196,7 +210,6 @@ class BatchController extends TenantAwareController
                 batch_number = COALESCE(?, batch_number),
                 production_date = COALESCE(?, production_date),
                 quantity = COALESCE(?, quantity),
-                _status = COALESCE(?, _status),
                 facility_name = COALESCE(?, facility_name),
                 facility_location = COALESCE(?, facility_location),
                 facility_registry = COALESCE(?, facility_registry),
@@ -210,7 +223,6 @@ class BatchController extends TenantAwareController
             $data['batch_number'] ?? null,
             $data['production_date'] ?? null,
             $data['quantity'] ?? null,
-            $data['status'] ?? null,
             $data['facility_name'] ?? null,
             $data['facility_location'] ?? null,
             $data['facility_registry'] ?? null,
@@ -225,7 +237,7 @@ class BatchController extends TenantAwareController
     }
 
     /**
-     * Delete batch (supplier only, no items)
+     * Delete batch (supplier only, in_production, no items)
      */
     public function delete(array $params): void
     {
@@ -235,6 +247,15 @@ class BatchController extends TenantAwareController
 
         if (!$this->canAccessBatchAsCurrentSupplier($batchId)) {
             Response::error('Batch not found', 404);
+            return;
+        }
+
+        // Verify batch is in_production
+        $stmt = $this->db->prepare('SELECT _status FROM batches WHERE id = ?');
+        $stmt->execute([$batchId]);
+        $batch = $stmt->fetch();
+        if ($batch['_status'] !== 'in_production') {
+            Response::error('Can only delete batches with status in_production', 400);
             return;
         }
 
@@ -250,6 +271,37 @@ class BatchController extends TenantAwareController
         $stmt->execute([$batchId]);
 
         Response::success(['deleted' => $batchId]);
+    }
+
+    /**
+     * Complete batch (supplier only, in_production → completed)
+     */
+    public function complete(array $params): void
+    {
+        $this->requireSupplier();
+
+        $batchId = (int) $params['id'];
+
+        if (!$this->canAccessBatchAsCurrentSupplier($batchId)) {
+            Response::error('Batch not found', 404);
+            return;
+        }
+
+        $stmt = $this->db->prepare('SELECT _status FROM batches WHERE id = ?');
+        $stmt->execute([$batchId]);
+        $batch = $stmt->fetch();
+
+        if ($batch['_status'] !== 'in_production') {
+            Response::error('Only in_production batches can be completed', 400);
+            return;
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE batches SET _status = ? WHERE id = ?'
+        );
+        $stmt->execute(['completed', $batchId]);
+
+        $this->show(['id' => $batchId]);
     }
 
     // ========== Access helpers ==========

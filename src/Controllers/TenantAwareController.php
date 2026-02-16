@@ -124,7 +124,7 @@ abstract class TenantAwareController
     }
 
     /**
-     * Verify batch belongs to current brand
+     * Verify batch belongs to current brand (via purchase_orders)
      */
     protected function verifyBatchOwnership(int|string $batchId): bool
     {
@@ -132,13 +132,17 @@ abstract class TenantAwareController
             return false;
         }
 
-        $stmt = $this->db->prepare('SELECT id FROM batches WHERE id = ? AND brand_id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT b.id FROM batches b
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE b.id = ? AND po.brand_id = ?'
+        );
         $stmt->execute([$batchId, TenantContext::getBrandId()]);
         return (bool) $stmt->fetch();
     }
 
     /**
-     * Verify item belongs to current brand (via batch)
+     * Verify item belongs to current brand (via batch → purchase_orders)
      */
     protected function verifyItemOwnership(int|string $itemId): bool
     {
@@ -149,7 +153,8 @@ abstract class TenantAwareController
         $stmt = $this->db->prepare(
             'SELECT i.id FROM items i
              JOIN batches b ON i.batch_id = b.id
-             WHERE i.id = ? AND b.brand_id = ?'
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE i.id = ? AND po.brand_id = ?'
         );
         $stmt->execute([$itemId, TenantContext::getBrandId()]);
         return (bool) $stmt->fetch();
@@ -205,18 +210,22 @@ abstract class TenantAwareController
     }
 
     /**
-     * Get brand_id for the current batch
+     * Get brand_id for the current batch (via purchase_orders)
      */
     protected function getBatchBrandId(int|string $batchId): ?int
     {
-        $stmt = $this->db->prepare('SELECT brand_id FROM batches WHERE id = ?');
+        $stmt = $this->db->prepare(
+            'SELECT po.brand_id FROM batches b
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE b.id = ?'
+        );
         $stmt->execute([$batchId]);
         $result = $stmt->fetch();
         return $result ? (int) $result['brand_id'] : null;
     }
 
     /**
-     * Check if supplier can access a batch (has materials used in it)
+     * Check if supplier can access a batch (via purchase_orders)
      */
     protected function canAccessBatchAsSupplier(int|string $batchId): bool
     {
@@ -226,11 +235,42 @@ abstract class TenantAwareController
 
         $stmt = $this->db->prepare(
             'SELECT b.id FROM batches b
-             JOIN batch_materials bm ON bm.batch_id = b.id
-             JOIN factory_materials fm ON bm.factory_material_id = fm.id
-             WHERE b.id = ? AND fm.supplier_id = ?'
+             JOIN purchase_orders po ON b.purchase_order_id = po.id
+             WHERE b.id = ? AND po.supplier_id = ?'
         );
         $stmt->execute([$batchId, TenantContext::getSupplierId()]);
+        return (bool) $stmt->fetch();
+    }
+
+    /**
+     * Verify purchase order belongs to current brand
+     */
+    protected function verifyPurchaseOrderOwnership(int|string $poId): bool
+    {
+        if (!TenantContext::isBrand()) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id FROM purchase_orders WHERE id = ? AND brand_id = ?'
+        );
+        $stmt->execute([$poId, TenantContext::getBrandId()]);
+        return (bool) $stmt->fetch();
+    }
+
+    /**
+     * Check if supplier can access a purchase order (is recipient)
+     */
+    protected function canAccessPurchaseOrderAsSupplier(int|string $poId): bool
+    {
+        if (!TenantContext::isSupplier()) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare(
+            'SELECT id FROM purchase_orders WHERE id = ? AND supplier_id = ?'
+        );
+        $stmt->execute([$poId, TenantContext::getSupplierId()]);
         return (bool) $stmt->fetch();
     }
 }
